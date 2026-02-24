@@ -1,12 +1,51 @@
+## 2026-02-24 - Settlement title word, cult system, gender glyphs in pills
+
+### New features
+
+Three independent features added in one batch:
+
+#### 1 — Dynamic settlement title word (`settlementWord`)
+The page title `🐙 Call of Cthulhu — 1920s **Town** Tinkerer` now reflects the
+current population. As the slider moves the word updates live:
+`Hamlet` (<300), `Village` (<1 000), `Town` (<5 000), `City` (<20 000),
+`Capital` (<60 000), `Large City` (<200 000), `Metropolis` (<1 000 000),
+`Megalopolis` (≥1 000 000).
+
+#### 2 — Cult system (full feature)
+New `src/cult.ts` module provides all generation logic, word lists, and types.
+
+- **Button**: `⚗ Create Cult` appears in the seed-control row; disabled until the population has been generated.
+- **Name generation**: three random styles using `CULT_ADJECTIVES` (75 entries), `CULT_NOUNS` (60), and `CULT_SUBJECTS` (48). No AI required.
+- **Hierarchy**: 1 Hierophant 🕯️, 1–3 Archons 🗝️ (by size), ~25 % Acolytes 📜, rest Initiates 🔮. Size is seeded-random and population-capped (3 – 120 members).
+- **Contact network**: each member knows the Hierophant + 1–3 lateral peers + 1–2 juniors.  Used to populate the "Contacts" list in the person modal.
+- **Secret enrichment**: on cult creation `enrichCultSecrets()` adds tagged `[Cult] …` entries to each member's AI-data extra-secrets pool. Hierophant gets +1 supernatural, Archon/Acolyte get +1 normal, Initiates 50 % chance of +1 normal.
+- **UI**: cults render as `.cult-card` panels above the category grid. Each rank row shows coloured pills (clickable → opens person modal). Multiple cults can be created; all reset when Generate is clicked.
+- **Person modal**: members see their cult name, rank title, description, flavour text, and clickable contacts list in the character notes section.
+- **Job-list cards**: cult members show a small `⚗` badge next to their name.
+
+#### 3 — Gender glyphs in person pills
+Adult pills `👨 John Smith` / `👩 Jane Doe` replaced with lighter Unicode glyphs
+`♂ John Smith` / `♀ Jane Doe`. Children's gendered emoji (`👦`/`👧`) unchanged.
+
+### Changed files
+
+- `src/cult.ts` *(new)* — `settlementWord`, `generateCult`, `getCultMembership`, `allCultMemberIds`, all word lists, `CultRank`/`CultMember`/`Cult` types
+- `src/main.ts` — imports from `cult.ts`; new state (`currentCults`, `nextCultId`, `cultSeed`); `updateTitleWord()`; `renderCults()`; `enrichCultSecrets()`; `createCultBtn` listener; gender glyphs in `renderJobList()`; cult badge and membership lookup; cult section in `showPersonDetail()`
+- `index.html` — `<button id="createCultBtn">` and `<div id="cultsContainer">` added to seed-control row
+- `src/style.css` — cult card/header/pill/badge/modal classes; gender-glyph colour rules
+
+---
+
 ## 2026-02-24 - Portrait fix, emoji centering, cache post-processing
 
 ### Problem
+
 Portraits regressed to emoji fallback after the previous session added
-`crossorigin="anonymous"` to the `<img>` tag.  Root cause: the attribute
+`crossorigin="anonymous"` to the `<img>` tag. Root cause: the attribute
 switches the browser from no-cors to cors fetch mode, sending an `Origin`
-header.  Combined with `cache-control: private` + `vary: Origin` on
+header. Combined with `cache-control: private` + `vary: Origin` on
 `lh3.googleusercontent.com`, browsers could fail CORS validation against a
-previously cached non-CORS response, triggering the fallback path.  Without the
+previously cached non-CORS response, triggering the fallback path. Without the
 attribute, the browser sends cookies (needed when files are shared only with a
 specific Google account) and no CORS validation is required for image display.
 
@@ -26,13 +65,13 @@ forces correct centering.
 
 ### Cache post-processing
 
-- **`PROCESSING_INSTRUCTIONS.md`** *(new)*: documents the post-processing
+- **`PROCESSING_INSTRUCTIONS.md`** _(new)_: documents the post-processing
   workflow for AI agents tasked with curating `public/prebuilt_cache.json`
   after new batches are generated — covers normalSecrets era correction and
   supernaturalSecrets quality curation.
 
-- **`scripts/process_cache.py`** *(new)*: reference implementation of the
-  post-processing.  Normalises case, deduplicates, removes weak/anachronistic
+- **`scripts/process_cache.py`** _(new)_: reference implementation of the
+  post-processing. Normalises case, deduplicates, removes weak/anachronistic
   entries, fills gaps with 243 hand-picked 1920s–1930s period secrets, and
   replaces the 158-entry redundant supernatural pool with 36 curated,
   distinctly-flavoured entries (covering Jazz-age haunting, Great-War ghosts,

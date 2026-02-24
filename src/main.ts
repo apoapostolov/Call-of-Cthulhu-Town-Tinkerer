@@ -6,6 +6,14 @@ import {
   getCacheStats,
   mergeCache,
 } from "./cache.ts";
+import {
+  allCultMemberIds,
+  generateCult,
+  getCultMembership,
+  RANK_META,
+  settlementWord,
+} from "./cult.ts";
+import type { Cult } from "./cult.ts";
 import { cthulhuData } from "./data.ts";
 import type { Person, Stats } from "./logic";
 import {
@@ -112,6 +120,11 @@ function updateCacheStatus(): void {
   }
 }
 
+// Cult state
+let currentCults: Cult[] = [];
+let nextCultId = 0;
+let cultSeed = 12345;
+
 let currentJob: string | null = null;
 let currentPage = 0;
 const PEOPLE_PER_PAGE = 50;
@@ -154,6 +167,17 @@ const progressText = document.getElementById(
 ) as HTMLParagraphElement;
 const modalOverlay = document.getElementById("modalOverlay") as HTMLDivElement;
 const modal = document.getElementById("modal") as HTMLDivElement;
+const createCultBtn = document.getElementById(
+  "createCultBtn",
+) as HTMLButtonElement;
+
+/** Update the settlement-type word in the page title based on population. */
+function updateTitleWord(population: number): void {
+  const titleEl = document.getElementById("title");
+  if (!titleEl) return;
+  const word = settlementWord(population);
+  titleEl.textContent = `🐙 Call of Cthulhu — 1920s ${word} Tinkerer`;
+}
 
 function formatNumber(n: number): string {
   if (n >= 1000000) return (n / 1000000).toFixed(2) + "M";
@@ -342,12 +366,17 @@ function renderJobList() {
       p.isGay && p.spouseId === null
         ? ' <span class="badge-gay">🏳️‍🌈</span>'
         : "";
+    const cultMembership = getCultMembership(currentCults, p.id);
+    const cultEmoji = cultMembership ? ` <span class="cult-member-badge" title="Member of ${cultMembership.cult.name}">⚗</span>` : "";
 
     const aiPersonData = aiData.get(p.id);
+    const genderGlyph = p.job === "Child"
+      ? (p.gender === "male" ? "👦" : "👧")
+      : (p.gender === "male" ? "♂" : "♀");
     peopleHtml += `<div class="person-card ${p.gender}${p.isGay ? " gay" : ""}" data-person-id="${p.id}">
       ${makeAvatarHtml(p, 48, false)}
       <div class="person-info">
-        <div class="person-name">${name}${gayBadge}<span class="person-age">, ${p.age} y.o.</span></div>
+        <div class="person-name">${genderGlyph} ${name}${gayBadge}${cultEmoji}<span class="person-age">, ${p.age} y.o.</span></div>
         ${aiPersonData ? `<div class="person-traits">${aiPersonData.traits}</div>` : ""}
         ${relations.length > 0 ? `<div class="person-relations">${relations.join(" • ")}</div>` : ""}
       </div>
@@ -530,12 +559,24 @@ function showPersonDetail(personId: number) {
         </div>
       </div>
       ${(() => {
-        const ai = aiData.get(person.id);
-        if (!ai) return "";
-        return `<div class="ai-character-section">
-          <h4>✨ Character Notes</h4>
-          <div class="ai-traits-text">${ai.traits}</div>
-          <div class="ai-secret-text">🔒 ${ai.secret}</div>
+        const membership = getCultMembership(currentCults, person.id);
+        if (!membership) return "";
+        const { cult, member } = membership;
+        const rankMeta = RANK_META[member.rank];
+        const contactsHtml = member.contacts
+          .map((cid) => {
+            const cp = people[cid];
+            if (!cp) return "";
+            const cm = cult.members.find((m) => m.personId === cid)!;
+            const cmMeta = RANK_META[cm.rank];
+            return `<div class="family-member" data-person-id="${cid}">${cmMeta.emoji} ${getPersonName(cp)} <span class="relation-type">(${cm.rank})</span></div>`;
+          })
+          .join("");
+        return `<div class="ai-character-section" style="display:block">
+          <h4>⚗ ${cult.name}</h4>
+          <div class="cult-modal-rank">${rankMeta.emoji} <strong>${member.rank}</strong> — ${rankMeta.description}</div>
+          <div class="cult-modal-flavour">${cult.flavour}</div>
+          ${member.contacts.length > 0 ? `<div class="family-section" style="margin-top:0.8rem"><h4>🔗 Known members</h4><div class="family-members">${contactsHtml}</div></div>` : ""}
         </div>`;
       })()}
       ${statsHtml}
@@ -578,10 +619,14 @@ function showPersonDetail(personId: number) {
 }
 
 async function doGenerate() {
-  // Clear AI data whenever the population is regenerated
+  // Clear AI data and cults whenever the population is regenerated
   aiData = new Map();
   aiRels = new Map();
   aiDataFromCache = false;
+  currentCults = [];
+  nextCultId = 0;
+  cultSeed = currentSeed;
+  renderCults();
 
   generatingEl.classList.add("active");
   shufflePhotosWithSeed(currentSeed);
@@ -620,6 +665,142 @@ async function doGenerate() {
   }
 }
 
+// ── Cult secrets enrichment ──────────────────────────────────────────────────
+
+/**
+ * Apply extra secrets to cult members via the aiData map.
+ * - Hierophant: +1 supernatural secret drawn from the cache/pool
+ * - Archons/Acolytes: +1 normal secret
+ * - Initiates: 50% chance +1 normal secret
+ *
+ * We append directly to the AIPersonData already in aiData.
+ * If the person has no AI data yet we create a stub with empty traits/secret.
+ */
+function enrichCultSecrets(cult: Cult): void {
+  for (const m of cult.members) {
+    let data = aiData.get(m.personId);
+    if (!data) {
+      // No AI data yet — create a minimal placeholder so secrets are visible
+      data = { traits: "", secret: "", extraSecrets: [] };
+      aiData.set(m.personId, data);
+    }
+    if (!data.extraSecrets) data.extraSecrets = [];
+
+    const rng = mulberry32(currentSeed ^ (m.personId * 0xbaba5678));
+
+    if (m.rank === "Hierophant") {
+      // Draw a supernatural secret from a small built-in pool
+      const supExtra = CULT_SUPERNATURAL_SECRETS[Math.floor(rng() * CULT_SUPERNATURAL_SECRETS.length)];
+      data.extraSecrets.push(`[Cult] ${supExtra}`);
+    } else if (m.rank === "Archon" || m.rank === "Acolyte") {
+      const normalExtra = CULT_NORMAL_SECRETS[Math.floor(rng() * CULT_NORMAL_SECRETS.length)];
+      data.extraSecrets.push(`[Cult] ${normalExtra}`);
+    } else {
+      // Initiate: 50% chance
+      if (rng() < 0.5) {
+        const normalExtra = CULT_NORMAL_SECRETS[Math.floor(rng() * CULT_NORMAL_SECRETS.length)];
+        data.extraSecrets.push(`[Cult] ${normalExtra}`);
+      }
+    }
+  }
+}
+
+/** Supernatural secrets specific to cult leadership. */
+const CULT_SUPERNATURAL_SECRETS = [
+  "Performs the Rite of Dreaming nightly to receive visions",
+  "Has heard the true name of the god beneath the harbour",
+  "Carries a bound servitor in a sealed silver case",
+  "Has gazed into the Shining Trapezohedron and survived",
+  "Dictated passages of the Necronomicon from memory",
+  "Has crossed the boundary of sleep and not fully returned",
+  "Receives instructions from an entity in the space between stars",
+  "Completed the Thirteenth Rite and carries the mark",
+  "Conversed with a Deep One in the tidal caves",
+  "Knows the location of a gate and how to open it",
+  "Was briefly possessed and remembers what the god saw",
+  "Trades secrets with a thing that wears a dead man's face",
+];
+
+/** Normal secrets specific to cult membership. */
+const CULT_NORMAL_SECRETS = [
+  "Procures sacrificial materials through an unwitting fence",
+  "Maintains a coded ledger of cult payments and favours",
+  "Recruited a new member without the leader's blessing",
+  "Carries blasphemous literature hidden in a prayer book",
+  "Has witnessed a rite that cannot be unseen",
+  "Supplies the cult's meeting house in exchange for protection",
+  "Must deliver a package monthly to a man in the waterfront",
+  "Agreed to dispose of a body — and did",
+  "Stole a minor relic for the cult against a member's wishes",
+  "Burns a coded candle in the window each full moon",
+  "Has been assigned to watch a specific townsperson",
+  "Passes coded messages via the classifieds column",
+  "Stores forbidden objects in a rented storage room",
+  "Was blackmailed into joining and now believes in the cause",
+  "Photographs police movements for the cult's use",
+];
+
+// ── Cult rendering ────────────────────────────────────────────────────────────
+
+const cultsContainerEl = document.getElementById(
+  "cultsContainer",
+) as HTMLDivElement;
+
+function renderCults(): void {
+  if (!currentPopulation) return;
+  const { people } = currentPopulation;
+
+  if (currentCults.length === 0) {
+    cultsContainerEl.innerHTML = "";
+    cultsContainerEl.style.display = "none";
+    return;
+  }
+
+  cultsContainerEl.style.display = "block";
+  cultsContainerEl.innerHTML = currentCults
+    .map((cult) => {
+      const byRank = new Map<string, number[]>();
+      for (const m of cult.members) {
+        if (!byRank.has(m.rank)) byRank.set(m.rank, []);
+        byRank.get(m.rank)!.push(m.personId);
+      }
+
+      const rankSections = (["Hierophant", "Archon", "Acolyte", "Initiate"] as const)
+        .filter((r) => byRank.has(r))
+        .map((rank) => {
+          const meta = RANK_META[rank];
+          const pills = byRank.get(rank)!.map((pid) => {
+            const p = people[pid];
+            if (!p) return "";
+            const name = getPersonName(p);
+            const genderGlyph = p.gender === "male" ? "♂" : "♀";
+            return `<span class="cult-pill cult-pill-${rank.toLowerCase()}" data-person-id="${pid}" title="${rank}">${meta.emoji}${genderGlyph} ${name}</span>`;
+          }).join("");
+          return `<div class="cult-rank-row"><span class="cult-rank-label">${meta.emoji} ${meta.plural}</span>${pills}</div>`;
+        }).join("");
+
+      return `<div class="cult-card">
+        <div class="cult-header">
+          <span class="cult-name">⛧ ${cult.name}</span>
+          <span class="cult-size">${cult.members.length} members</span>
+        </div>
+        <div class="cult-flavour">${cult.flavour}</div>
+        ${rankSections}
+      </div>`;
+    })
+    .join("");
+
+  // Pills are clickable — open person modal
+  cultsContainerEl.querySelectorAll(".cult-pill").forEach((pill) => {
+    pill.addEventListener("click", () => {
+      const pid = parseInt((pill as HTMLElement).dataset.personId!);
+      navigationHistory = [{ type: "detail", personId: pid }];
+      modalOverlay.classList.add("active");
+      showPersonDetail(pid);
+    });
+  });
+}
+
 // Slider logic
 function sliderToPopulation(val: number) {
   if (val <= 500) return val * 10;
@@ -636,6 +817,7 @@ popSlider.addEventListener("input", (e) => {
   const val = parseInt((e.target as HTMLInputElement).value);
   totalPopulation = sliderToPopulation(val);
   popInput.value = totalPopulation.toString();
+  updateTitleWord(totalPopulation);
   clearTimeout(generateTimeout);
   generateTimeout = setTimeout(() => doGenerate(), 300);
 });
@@ -645,6 +827,7 @@ popInput.addEventListener("input", (e) => {
   pop = Math.max(1, Math.min(5000000, pop));
   totalPopulation = pop;
   popSlider.value = populationToSlider(pop).toString();
+  updateTitleWord(totalPopulation);
   clearTimeout(generateTimeout);
   generateTimeout = setTimeout(() => doGenerate(), 500);
 });
@@ -783,7 +966,28 @@ document.getElementById("aiCancelBtn")?.addEventListener("click", () => {
   aiController?.abort();
 });
 
+// ── Create Cult button ────────────────────────────────────────────────────────
+createCultBtn.addEventListener("click", () => {
+  if (!currentPopulation) return;
+  const adults = currentPopulation.people.filter((p) => p.job !== "Child");
+  const excluded = allCultMemberIds(currentCults);
+  const newCult = generateCult(
+    nextCultId,
+    adults,
+    excluded,
+    totalPopulation,
+    cultSeed + nextCultId * 77,
+  );
+  if (newCult) {
+    currentCults.push(newCult);
+    nextCultId++;
+    enrichCultSecrets(newCult);
+    renderCults();
+  }
+});
+
 // Initial generation
 currentSeed = parseInt(seedInput.value) || 12345;
 totalPopulation = parseInt(popInput.value) || 1000;
+updateTitleWord(totalPopulation);
 doGenerate();
