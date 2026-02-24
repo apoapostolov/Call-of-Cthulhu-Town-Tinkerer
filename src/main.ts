@@ -7,6 +7,9 @@ import { generateCthulhuStats, generatePopulation, mulberry32 } from "./logic";
 import { GDRIVE_PHOTOS, gdUrl } from "./photos";
 import "./style.css";
 
+console.info("[App] Call of Cthulhu - 1920s Town Tinkerer starting...");
+console.debug(`[App] Env: ${import.meta.env.MODE}`);
+
 let malePhotosSeed: string[] = [];
 let femalePhotosSeed: string[] = [];
 const malePhotos = GDRIVE_PHOTOS.hommes.map(gdUrl);
@@ -620,15 +623,22 @@ aiSettingsOverlay.addEventListener("click", (e) => {
 
 // ── Populate AI Data button ───────────────────────────────────────────────
 populateAiBtn.addEventListener("click", async () => {
-  if (!currentPopulation) return;
+  if (!currentPopulation) {
+    console.warn(
+      "[App] populateAiBtn clicked but no currentPopulation exists.",
+    );
+    return;
+  }
 
   const apiKey = getApiKey();
   if (!apiKey) {
+    console.warn("[App] No API key found. Opening settings.");
     aiKeyInput.value = "";
     aiSettingsOverlay.classList.add("active");
     return;
   }
 
+  console.info("[App] Initializing AI population data...");
   aiController = new AbortController();
   aiProgressFill.style.width = "0%";
   aiProgressText.textContent = "Starting…";
@@ -645,10 +655,16 @@ populateAiBtn.addEventListener("click", async () => {
         const pct = total > 0 ? (done / total) * 100 : 0;
         aiProgressFill.style.width = `${pct}%`;
         aiProgressText.textContent = status;
+        console.debug(
+          `[App] AI Progress: ${done}/${total} (${pct.toFixed(1)}%) - ${status}`,
+        );
       },
       aiController.signal,
     );
 
+    console.info(
+      `[App] AI Data generation complete. ${result.people.size} people, ${result.rels.size} rels.`,
+    );
     aiData = result.people;
     aiRels = result.rels;
 
@@ -657,23 +673,28 @@ populateAiBtn.addEventListener("click", async () => {
     aiDataFromCache = false;
     updateCacheStatus();
     console.info(
-      `AI cache: +${traitsAdded} traits, +${secretsAdded} secrets appended.`,
+      `[App] AI cache updated: +${traitsAdded} traits, +${secretsAdded} secrets.`,
     );
 
     aiProgressFill.style.width = "100%";
     aiProgressText.textContent = `✅ Done — ${aiData.size} characters enriched.`;
-    setTimeout(() => aiProgressOverlay.classList.remove("active"), 1800);
+    setTimeout(() => {
+      console.debug("[App] Closing AI progress overlay.");
+      aiProgressOverlay.classList.remove("active");
+    }, 1800);
   } catch (e) {
-    const msg = (e as Error).message;
-    if ((e as Error).name === "AbortError") {
+    const err = e as Error;
+    console.error("[App] AI data population failed:", err);
+    if (err.name === "AbortError") {
       aiProgressText.textContent = "Cancelled.";
     } else {
-      aiProgressText.textContent = `❌ ${msg}`;
+      aiProgressText.textContent = `❌ ${err.message}`;
     }
-    setTimeout(() => aiProgressOverlay.classList.remove("active"), 2500);
+    setTimeout(() => aiProgressOverlay.classList.remove("active"), 3500);
   } finally {
     populateAiBtn.disabled = false;
     aiController = null;
+    console.debug("[App] AI population process finished.");
   }
 });
 

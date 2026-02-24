@@ -24,6 +24,14 @@ npm run dev             # runs vite --port 9091
 
 After building, preview the production bundle with `npm run serve`.
 
+**Build and Restart Protocol (Mandatory):**
+
+Always perform a full build and restart the development server as the penultimate step of every response (before the documentation update). This ensures the environment is clean and reflects all changes.
+
+```bash
+npm run build && fuser -k 9091/tcp 2>/dev/null; sleep 1 && npm run dev
+```
+
 **Verify the server is running:**
 
 ```bash

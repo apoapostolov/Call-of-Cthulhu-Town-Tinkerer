@@ -2,9 +2,9 @@ import type { Person } from "./logic";
 import { mulberry32 } from "./logic";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-export const AI_MODEL = "deepseek/deepseek-v3.2";
+export const AI_MODEL = "x-ai/grok-4.1-fast"; // switched to a still-fast free variant
 const BATCH_SIZE = 50;
-const CONCURRENCY_LIMIT = 3; // Number of parallel requests to OpenRouter
+const CONCURRENCY_LIMIT = 5; // Number of parallel requests to OpenRouter
 export const MAX_ADULTS = 5000; // cap to avoid runaway cost
 const MAX_RETRIES = 3;
 
@@ -189,10 +189,6 @@ async function callOpenRouterWithRetry(
           ],
           temperature: 0.8,
           max_tokens: 4096,
-          provider: {
-            order: ["DeepSeek"],
-            allow_fallbacks: false,
-          },
         }),
       });
       console.debug(

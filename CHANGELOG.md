@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
   - Added 90-second per-request timeouts using `AbortController` to prevent silent hangs.
   - Reduced batch size from 100 to 50 individuals to ensure responses stay within model token limits and avoid truncation errors.
   - Pinned DeepSeek model requests to the native "DeepSeek" provider on OpenRouter to improve consistency and reduce routing latency.
+  - Switched the default AI model to `x-ai/grok-4-fast:free` for much lower latency and removed manual provider restrictions to let OpenRouter auto‑route.
 - **API Key Security**:
   - API keys are no longer pre-filled in the settings DOM.
   - Added a "🗑️ Remove Key" feature to clear local storage.

@@ -67,6 +67,14 @@
           OpenRouter. It is never displayed here after saving.
         </p>
         <form autocomplete="off" onsubmit="return false;" style="margin: 0">
+          <!-- Hidden username field to satisfy accessibility requirements -->
+          <input
+            type="text"
+            name="username"
+            autocomplete="username"
+            style="display: none"
+            aria-hidden="true"
+          />
           <input
             type="password"
             id="aiKeyInput"

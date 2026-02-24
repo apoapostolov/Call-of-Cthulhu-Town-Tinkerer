@@ -16,6 +16,19 @@ higher latency, or different quantization.
 - Project built successfully.
 - Server restarted and confirmed responsive on `localhost:9091`.
 
+## 2026-02-24 - AI model changed to grok-4.1-fast for speed
+
+Updated `AI_MODEL` constant from DeepSeek to `x-ai/grok-4-fast:free` and removed provider pinning to allow OpenRouter's automatic routing. This gave markedly lower latency during testing.
+
+### Changed files
+
+- `src/ai.ts` – changed AI_MODEL and provider.order value.
+
+### Verification
+
+- Project built successfully.
+- Server restarted and confirmed responsive on `localhost:9091`.
+
 ## 2026-02-24 - Fix AI response truncation and refine batch size
 
 **Root cause:** Large NPC batches (100+) combined with relationship data were
