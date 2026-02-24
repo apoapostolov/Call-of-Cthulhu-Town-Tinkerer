@@ -1,9 +1,12 @@
-import './style.css';
-import { generatePopulation, generateCthulhuStats, mulberry32 } from './logic';
-import type { Person, Stats } from './logic';
-import { cthulhuData } from './data';
+import { cthulhuData } from "./data";
+import type { Person, Stats } from "./logic";
+import { generateCthulhuStats, generatePopulation, mulberry32 } from "./logic";
+import "./style.css";
 
-let currentPopulation: { people: Person[]; jobIndex: Record<string, number[]> } | null = null;
+let currentPopulation: {
+  people: Person[];
+  jobIndex: Record<string, number[]>;
+} | null = null;
 let currentSeed = 12345;
 let totalPopulation = 1000;
 
@@ -12,18 +15,24 @@ let currentPage = 0;
 const PEOPLE_PER_PAGE = 50;
 let navigationHistory: any[] = [];
 
-const popSlider = document.getElementById('popSlider') as HTMLInputElement;
-const popInput = document.getElementById('popInput') as HTMLInputElement;
-const seedInput = document.getElementById('seedInput') as HTMLInputElement;
-const regenerateBtn = document.getElementById('regenerateBtn') as HTMLButtonElement;
-const randomSeedBtn = document.getElementById('randomSeedBtn') as HTMLButtonElement;
-const categoriesEl = document.getElementById('categories') as HTMLDivElement;
-const summaryEl = document.getElementById('summary') as HTMLDivElement;
-const generatingEl = document.getElementById('generating') as HTMLDivElement;
-const progressFill = document.getElementById('progressFill') as HTMLDivElement;
-const progressText = document.getElementById('progressText') as HTMLParagraphElement;
-const modalOverlay = document.getElementById('modalOverlay') as HTMLDivElement;
-const modal = document.getElementById('modal') as HTMLDivElement;
+const popSlider = document.getElementById("popSlider") as HTMLInputElement;
+const popInput = document.getElementById("popInput") as HTMLInputElement;
+const seedInput = document.getElementById("seedInput") as HTMLInputElement;
+const regenerateBtn = document.getElementById(
+  "regenerateBtn",
+) as HTMLButtonElement;
+const randomSeedBtn = document.getElementById(
+  "randomSeedBtn",
+) as HTMLButtonElement;
+const categoriesEl = document.getElementById("categories") as HTMLDivElement;
+const summaryEl = document.getElementById("summary") as HTMLDivElement;
+const generatingEl = document.getElementById("generating") as HTMLDivElement;
+const progressFill = document.getElementById("progressFill") as HTMLDivElement;
+const progressText = document.getElementById(
+  "progressText",
+) as HTMLParagraphElement;
+const modalOverlay = document.getElementById("modalOverlay") as HTMLDivElement;
+const modal = document.getElementById("modal") as HTMLDivElement;
 
 function formatNumber(n: number): string {
   if (n >= 1000000) return (n / 1000000).toFixed(2) + "M";
@@ -32,24 +41,29 @@ function formatNumber(n: number): string {
 }
 
 function getPersonName(p: Person): string {
-  const fn = p.gender === "male" ? cthulhuData.firstNamesMale : cthulhuData.firstNamesFemale;
+  const fn =
+    p.gender === "male"
+      ? cthulhuData.firstNamesMale
+      : cthulhuData.firstNamesFemale;
   return fn[p.firstNameIdx] + " " + cthulhuData.lastNames[p.lastNameIdx];
 }
 
 function makeAvatarHtml(person: Person, _size = 48, isLarge = false): string {
   const emoji = person.gender === "male" ? "👨" : "👩";
-  const placeholderCls = isLarge ? "person-avatar-placeholder-large" : "person-avatar-placeholder";
+  const placeholderCls = isLarge
+    ? "person-avatar-placeholder-large"
+    : "person-avatar-placeholder";
   return `<div class="${placeholderCls}">${emoji}</div>`;
 }
 
 function formatStatsForFoundry(person: Person, stats: Stats): string {
   let text = `Name: ${getPersonName(person)}\n`;
-  text += `Age: ${person.age} | Job: ${person.job || 'None'}\n`;
+  text += `Age: ${person.age} | Job: ${person.job || "None"}\n`;
   text += `STR: ${stats.STR} | CON: ${stats.CON} | SIZ: ${stats.SIZ} | DEX: ${stats.DEX} | APP: ${stats.APP}\n`;
   text += `INT: ${stats.INT} | POW: ${stats.POW} | EDU: ${stats.EDU} | SAN: ${stats.SAN}\n`;
   text += `HP: ${stats.HP} | MP: ${stats.MP} | Luck: ${stats.Luck}\n`;
   text += `DB: ${stats.DB} | Build: ${stats.Build} | MOV: ${stats.MOV} | Dodge: ${stats.Dodge}\n\n`;
-  
+
   if (Object.keys(stats.Skills).length > 0) {
     text += `Skills:\n`;
     for (const [skill, val] of Object.entries(stats.Skills)) {
@@ -57,7 +71,7 @@ function formatStatsForFoundry(person: Person, stats: Stats): string {
     }
     text += `\n`;
   }
-  
+
   if (stats.Attacks.length > 0) {
     text += `Attacks:\n`;
     for (const attack of stats.Attacks) {
@@ -70,21 +84,22 @@ function formatStatsForFoundry(person: Person, stats: Stats): string {
 function renderCategories() {
   if (!currentPopulation) return;
   const { jobIndex } = currentPopulation;
-  
+
   categoriesEl.innerHTML = "";
   for (const [, category] of Object.entries(cthulhuData.jobs)) {
     const catEl = document.createElement("div");
     catEl.className = "category";
     let jobsHtml = "";
     const sortedJobs = [...category.jobs].sort(
-      (a, b) => (jobIndex[b.name]?.length || 0) - (jobIndex[a.name]?.length || 0)
+      (a, b) =>
+        (jobIndex[b.name]?.length || 0) - (jobIndex[a.name]?.length || 0),
     );
-    
+
     for (const job of sortedJobs) {
       const count = jobIndex[job.name]?.length || 0;
       const active = totalPopulation >= job.threshold;
       if (!active && count === 0) continue;
-      
+
       const displayName = job.name;
       const displayThreshold = formatNumber(job.threshold);
       jobsHtml += `<div class="job ${active && count > 0 ? "" : "inactive"}" data-job="${job.name}">
@@ -92,9 +107,9 @@ function renderCategories() {
         <span class="job-count">${formatNumber(count)}</span>
       </div>`;
     }
-    
+
     if (!jobsHtml) continue;
-    
+
     catEl.innerHTML = `<h2 style="border-color: ${category.color}; color: ${category.color};">${category.name}</h2>${jobsHtml}`;
     catEl.querySelectorAll(".job:not(.inactive)").forEach((jobEl) => {
       jobEl.addEventListener("click", () => {
@@ -105,10 +120,10 @@ function renderCategories() {
     });
     categoriesEl.appendChild(catEl);
   }
-  
+
   const children = jobIndex["Child"]?.length || 0;
   const elders = jobIndex["Retiree"]?.length || 0;
-  
+
   summaryEl.innerHTML = `
     <div class="summary-item"><div class="value">${formatNumber(totalPopulation)}</div><div class="label">Population</div></div>
     <div class="summary-item"><div class="value">${formatNumber(children)}</div><div class="label">Children</div></div>
@@ -139,7 +154,7 @@ function renderJobList() {
   const totalPages = Math.ceil(ids.length / PEOPLE_PER_PAGE);
   const start = currentPage * PEOPLE_PER_PAGE;
   const end = Math.min(start + PEOPLE_PER_PAGE, ids.length);
-  
+
   let peopleHtml = "";
   for (let i = start; i < end; i++) {
     const p = people[ids[i]];
@@ -147,12 +162,20 @@ function renderJobList() {
     const relations = [];
     if (p.spouseId !== null) {
       const sp = people[p.spouseId];
-      const spName = sp.gender === "female" ? cthulhuData.firstNamesFemale[sp.firstNameIdx] : cthulhuData.firstNamesMale[sp.firstNameIdx];
-      relations.push(`💑 ${spName}${p.isGay ? ' <span class="badge-gay">🏳️‍🌈</span>' : ""}`);
+      const spName =
+        sp.gender === "female"
+          ? cthulhuData.firstNamesFemale[sp.firstNameIdx]
+          : cthulhuData.firstNamesMale[sp.firstNameIdx];
+      relations.push(
+        `💑 ${spName}${p.isGay ? ' <span class="badge-gay">🏳️‍🌈</span>' : ""}`,
+      );
     }
     if (p.childrenIds.length > 0) relations.push(`👶 ${p.childrenIds.length}`);
-    const gayBadge = p.isGay && p.spouseId === null ? ' <span class="badge-gay">🏳️‍🌈</span>' : "";
-    
+    const gayBadge =
+      p.isGay && p.spouseId === null
+        ? ' <span class="badge-gay">🏳️‍🌈</span>'
+        : "";
+
     peopleHtml += `<div class="person-card ${p.gender}${p.isGay ? " gay" : ""}" data-person-id="${p.id}">
       ${makeAvatarHtml(p, 48, false)}
       <div class="person-info">
@@ -162,7 +185,7 @@ function renderJobList() {
       </div>
     </div>`;
   }
-  
+
   let jobIcon = "👤";
   for (const cat of Object.values(cthulhuData.jobs)) {
     const found = cat.jobs.find((j) => j.name === currentJob);
@@ -171,22 +194,26 @@ function renderJobList() {
       break;
     }
   }
-  
+
   modal.innerHTML = `
     <div class="modal-header">
       <h2>${jobIcon} ${currentJob} (${formatNumber(ids.length)})</h2>
       <button class="modal-close" id="closeModal">&times;</button>
     </div>
     <div class="people-list">${peopleHtml}</div>
-    ${totalPages > 1 ? `
+    ${
+      totalPages > 1
+        ? `
       <div class="pagination">
         <button id="prevPage" ${currentPage === 0 ? "disabled" : ""}>◀ Previous</button>
         <span>Page ${currentPage + 1} / ${formatNumber(totalPages)}</span>
         <button id="nextPage" ${currentPage >= totalPages - 1 ? "disabled" : ""}>Next ▶</button>
       </div>
-    ` : ""}
+    `
+        : ""
+    }
   `;
-  
+
   document.getElementById("closeModal")?.addEventListener("click", closeModal);
   document.getElementById("prevPage")?.addEventListener("click", () => {
     if (currentPage > 0) {
@@ -200,7 +227,7 @@ function renderJobList() {
       renderJobList();
     }
   });
-  
+
   modal.querySelectorAll(".person-card").forEach((card) => {
     card.addEventListener("click", () => {
       const pid = parseInt((card as HTMLElement).dataset.personId!);
@@ -215,10 +242,10 @@ function showPersonDetail(personId: number) {
   const { people } = currentPopulation;
   const person = people[personId];
   if (!person) return;
-  
+
   const name = getPersonName(person);
   let statsHtml = "";
-  
+
   if (person.job !== "Child") {
     const rng = mulberry32(currentSeed + personId * 9973);
     const stats = generateCthulhuStats(person, rng);
@@ -231,7 +258,7 @@ function showPersonDetail(personId: number) {
       </div>
     `;
   }
-  
+
   let familyHtml = "";
   if (person.spouseId !== null) {
     const spouse = people[person.spouseId];
@@ -241,42 +268,48 @@ function showPersonDetail(personId: number) {
         <h4>💑 Spouse${spouseGayBadge}</h4>
         <div class="family-members">
           <div class="family-member" data-person-id="${spouse.id}">
-            ${spouse.gender === "male" ? "👨" : "👩"} ${getPersonName(spouse)} 
-            <span class="relation-type">(${spouse.age} y.o., ${spouse.job || 'None'})</span>
+            ${spouse.gender === "male" ? "👨" : "👩"} ${getPersonName(spouse)}
+            <span class="relation-type">(${spouse.age} y.o., ${spouse.job || "None"})</span>
           </div>
         </div>
       </div>
     `;
   }
-  
+
   if (person.parentIds.length > 0) {
-    const parentsHtml = person.parentIds.map((id) => {
-      const p = people[id];
-      return `<div class="family-member" data-person-id="${p.id}">${p.gender === "male" ? "👨" : "👩"} ${getPersonName(p)} <span class="relation-type">(${p.age} y.o., ${p.job || 'None'})</span></div>`;
-    }).join("");
+    const parentsHtml = person.parentIds
+      .map((id) => {
+        const p = people[id];
+        return `<div class="family-member" data-person-id="${p.id}">${p.gender === "male" ? "👨" : "👩"} ${getPersonName(p)} <span class="relation-type">(${p.age} y.o., ${p.job || "None"})</span></div>`;
+      })
+      .join("");
     familyHtml += `<div class="family-section"><h4>👨‍👩‍👦 Parents</h4><div class="family-members">${parentsHtml}</div></div>`;
   }
-  
+
   if (person.siblingIds.length > 0) {
-    const siblingsHtml = person.siblingIds.map((id) => {
-      const s = people[id];
-      return `<div class="family-member" data-person-id="${s.id}">${s.gender === "male" ? "👨" : "👩"} ${getPersonName(s)} <span class="relation-type">(${s.age} y.o., ${s.job || 'None'})</span></div>`;
-    }).join("");
+    const siblingsHtml = person.siblingIds
+      .map((id) => {
+        const s = people[id];
+        return `<div class="family-member" data-person-id="${s.id}">${s.gender === "male" ? "👨" : "👩"} ${getPersonName(s)} <span class="relation-type">(${s.age} y.o., ${s.job || "None"})</span></div>`;
+      })
+      .join("");
     familyHtml += `<div class="family-section"><h4>👫 Siblings</h4><div class="family-members">${siblingsHtml}</div></div>`;
   }
-  
+
   if (person.childrenIds.length > 0) {
-    const childrenHtml = person.childrenIds.map((id) => {
-      const c = people[id];
-      return `<div class="family-member" data-person-id="${c.id}">${c.gender === "male" ? "👦" : "👧"} ${getPersonName(c)} <span class="relation-type">(${c.age} y.o., ${c.job || 'None'})</span></div>`;
-    }).join("");
+    const childrenHtml = person.childrenIds
+      .map((id) => {
+        const c = people[id];
+        return `<div class="family-member" data-person-id="${c.id}">${c.gender === "male" ? "👦" : "👧"} ${getPersonName(c)} <span class="relation-type">(${c.age} y.o., ${c.job || "None"})</span></div>`;
+      })
+      .join("");
     familyHtml += `<div class="family-section"><h4>👶 Children</h4><div class="family-members">${childrenHtml}</div></div>`;
   }
-  
+
   if (!familyHtml && !statsHtml) {
     familyHtml = `<p style="color: #888; margin-top: 1rem;">Single with no known family</p>`;
   }
-  
+
   let jobIcon = "👤";
   for (const cat of Object.values(cthulhuData.jobs)) {
     const found = cat.jobs.find((j) => j.name === person.job);
@@ -285,10 +318,10 @@ function showPersonDetail(personId: number) {
       break;
     }
   }
-  
+
   const gayBadge = person.isGay ? ' <span class="badge-gay">🏳️‍🌈</span>' : "";
   const genderLabel = person.gender === "male" ? "Male" : "Female";
-  
+
   modal.innerHTML = `
     <div class="modal-header">
       <h2>${person.gender === "male" ? "👨" : "👩"} ${name}${gayBadge}</h2>
@@ -300,7 +333,7 @@ function showPersonDetail(personId: number) {
         ${makeAvatarHtml(person, 100, true)}
         <div class="info">
           <strong>Age:</strong> ${person.age} y.o.<br>
-          <strong>Job:</strong> ${jobIcon} ${person.job || 'None'}<br>
+          <strong>Job:</strong> ${jobIcon} ${person.job || "None"}<br>
           <strong>Family:</strong> ${cthulhuData.lastNames[person.lastNameIdx]}<br>
           <strong>Gender:</strong> ${genderLabel}${person.isGay ? " 🏳️‍🌈" : ""}
         </div>
@@ -309,7 +342,7 @@ function showPersonDetail(personId: number) {
       ${familyHtml}
     </div>
   `;
-  
+
   document.getElementById("closeModal")?.addEventListener("click", closeModal);
   document.getElementById("backBtn")?.addEventListener("click", () => {
     navigationHistory.pop();
@@ -317,7 +350,7 @@ function showPersonDetail(personId: number) {
     if (prev.type === "list") renderJobList();
     else showPersonDetail(prev.personId);
   });
-  
+
   const copyBtn = document.getElementById("copyBtn");
   if (copyBtn) {
     copyBtn.addEventListener("click", () => {
@@ -334,7 +367,7 @@ function showPersonDetail(personId: number) {
       }
     });
   }
-  
+
   modal.querySelectorAll(".family-member").forEach((member) => {
     member.addEventListener("click", () => {
       const pid = parseInt((member as HTMLElement).dataset.personId!);
@@ -345,21 +378,25 @@ function showPersonDetail(personId: number) {
 }
 
 async function doGenerate() {
-  generatingEl.classList.add('active');
-  
+  generatingEl.classList.add("active");
+
   try {
-    currentPopulation = await generatePopulation(totalPopulation, currentSeed, async (text, percent) => {
-      progressText.textContent = text;
-      progressFill.style.width = `${percent}%`;
-      await new Promise(r => setTimeout(r, 10));
-    });
+    currentPopulation = await generatePopulation(
+      totalPopulation,
+      currentSeed,
+      async (text, percent) => {
+        progressText.textContent = text;
+        progressFill.style.width = `${percent}%`;
+        await new Promise((r) => setTimeout(r, 10));
+      },
+    );
     renderCategories();
   } catch (e) {
     console.error(e);
   } finally {
     setTimeout(() => {
-      generatingEl.classList.remove('active');
-      progressFill.style.width = '0%';
+      generatingEl.classList.remove("active");
+      progressFill.style.width = "0%";
     }, 500);
   }
 }
@@ -395,7 +432,10 @@ popInput.addEventListener("input", (e) => {
 
 popInput.addEventListener("blur", (e) => {
   let pop = parseInt((e.target as HTMLInputElement).value) || 1;
-  (e.target as HTMLInputElement).value = Math.max(1, Math.min(5000000, pop)).toString();
+  (e.target as HTMLInputElement).value = Math.max(
+    1,
+    Math.min(5000000, pop),
+  ).toString();
 });
 
 regenerateBtn.addEventListener("click", () => {
