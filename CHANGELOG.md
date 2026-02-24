@@ -19,6 +19,7 @@ All notable changes to this project will be documented in this file.
   - Reduced batch size from 100 to 50 individuals to ensure responses stay within model token limits and avoid truncation errors.
   - Pinned DeepSeek model requests to the native "DeepSeek" provider on OpenRouter to improve consistency and reduce routing latency.
   - Switched the default AI model to `x-ai/grok-4-fast:free` for much lower latency and removed manual provider restrictions to let OpenRouter auto‑route.
+- Added a `scripts/generate_cache.ts` utility and accompanying `prebuilt_cache.json` file. Running the script with an OpenRouter key will pre-generate a million traits/secrets; the web app imports this JSON on first load to avoid any AI calls.
 - **API Key Security**:
   - API keys are no longer pre-filled in the settings DOM.
   - Added a "🗑️ Remove Key" feature to clear local storage.

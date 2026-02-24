@@ -20,6 +20,15 @@ higher latency, or different quantization.
 
 Updated `AI_MODEL` constant from DeepSeek to `x-ai/grok-4-fast:free` and removed provider pinning to allow OpenRouter's automatic routing. This gave markedly lower latency during testing.
 
+## 2026-02-24 - Prebuilt AI cache and generation script
+
+Created `scripts/generate_cache.ts`, a Node script that reuses the existing
+AI module to produce a JSON file containing 1 000 000 traits and 1 000 000
+secrets. The file (`prebuilt_cache.json`) is checked into the repo and is
+loaded by the browser on first visit so new users instantly see AI results
+without any network calls. Added `generate-cache` npm script and dev
+dependencies (`ts-node`, `typescript`).
+
 ### Changed files
 
 - `src/ai.ts` – changed AI_MODEL and provider.order value.

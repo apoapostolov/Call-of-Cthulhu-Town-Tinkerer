@@ -10,6 +10,24 @@ import "./style.css";
 console.info("[App] Call of Cthulhu - 1920s Town Tinkerer starting...");
 console.debug(`[App] Env: ${import.meta.env.MODE}`);
 
+// If we've shipped a prebuilt cache file, load it into localStorage on first
+// run so subsequent generations can auto-fill immediately.
+async function seedCacheFromFile() {
+  if (!localStorage.getItem("coc_ai_cache")) {
+    try {
+      const resp = await fetch("/prebuilt_cache.json");
+      if (resp.ok) {
+        const text = await resp.text();
+        localStorage.setItem("coc_ai_cache", text);
+        console.info("[App] seeded AI cache from prebuilt file");
+      }
+    } catch (e) {
+      console.warn("[App] could not load prebuilt cache", e);
+    }
+  }
+}
+seedCacheFromFile();
+
 let malePhotosSeed: string[] = [];
 let femalePhotosSeed: string[] = [];
 const malePhotos = GDRIVE_PHOTOS.hommes.map(gdUrl);
