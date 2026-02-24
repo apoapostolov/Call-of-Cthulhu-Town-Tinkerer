@@ -3,27 +3,33 @@ import { MAX_ADULTS, populateAIData, relKey } from "./ai.ts";
 import { appendToCache, fillFromCache, getCacheStats } from "./cache.ts";
 import { cthulhuData } from "./data.ts";
 import type { Person, Stats } from "./logic";
-import { generateCthulhuStats, generatePopulation, mulberry32 } from "./logic.ts";
+import {
+  generateCthulhuStats,
+  generatePopulation,
+  mulberry32,
+} from "./logic.ts";
 import { GDRIVE_PHOTOS, gdUrl } from "./photos.ts";
 import "./style.css";
 
 console.info("[App] Call of Cthulhu - 1920s Town Tinkerer starting...");
 console.debug(`[App] Env: ${import.meta.env.MODE}`);
 
-// If we've shipped a prebuilt cache file, load it into localStorage on first
-// run so subsequent generations can auto-fill immediately.
+// If we've shipped a prebuilt cache file, load its contents and merge into
+// the on‑device cache before the first generation.  This allows users to
+// generate a town with traits/secrets immediately, even without an API key.
+// The merge is idempotent so calling it every session is safe.
 async function seedCacheFromFile() {
-  if (!localStorage.getItem("coc_ai_cache")) {
-    try {
-      const resp = await fetch("/prebuilt_cache.json");
-      if (resp.ok) {
-        const text = await resp.text();
-        localStorage.setItem("coc_ai_cache", text);
-        console.info("[App] seeded AI cache from prebuilt file");
-      }
-    } catch (e) {
-      console.warn("[App] could not load prebuilt cache", e);
+  try {
+    const resp = await fetch("/prebuilt_cache.json");
+    if (resp.ok) {
+      const data = (await resp.json()) as Record<string, any>;
+      // Use mergeCache to avoid stomping any existing entries the user may have
+      // accumulated via previous AI runs; duplicates are skipped.
+      mergeCache(data as any);
+      console.info("[App] merged AI cache from prebuilt file");
     }
+  } catch (e) {
+    console.warn("[App] could not load prebuilt cache", e);
   }
 }
 seedCacheFromFile();

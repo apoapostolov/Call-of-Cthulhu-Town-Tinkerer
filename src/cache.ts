@@ -78,6 +78,52 @@ export function getCacheStats(): CacheStats {
 }
 
 /**
+ * Merge an externally provided cache fragment into the existing stored cache.
+ * Used during startup to incorporate a prebuilt cache file shipped with the
+ * application. Entries are appended only if they are unique and pools are
+ * capped by MAX_POOL. The operation is idempotent.
+ */
+export function mergeCache(other: Partial<AICache>): void {
+  const c = loadCache();
+  const traitsSet = new Set(c.traits);
+  const normalSet = new Set(c.normalSecrets);
+  const supSet = new Set(c.supernaturalSecrets);
+
+  if (Array.isArray(other.traits)) {
+    for (const t of other.traits) {
+      if (c.traits.length >= MAX_POOL) break;
+      const tt = t.trim();
+      if (tt && !traitsSet.has(tt)) {
+        c.traits.push(tt);
+        traitsSet.add(tt);
+      }
+    }
+  }
+  if (Array.isArray(other.normalSecrets)) {
+    for (const s of other.normalSecrets) {
+      if (c.normalSecrets.length >= MAX_POOL) break;
+      const ss = s.trim();
+      if (ss && !normalSet.has(ss)) {
+        c.normalSecrets.push(ss);
+        normalSet.add(ss);
+      }
+    }
+  }
+  if (Array.isArray(other.supernaturalSecrets)) {
+    for (const s of other.supernaturalSecrets) {
+      if (c.supernaturalSecrets.length >= MAX_POOL) break;
+      const ss = s.trim();
+      if (ss && !supSet.has(ss)) {
+        c.supernaturalSecrets.push(ss);
+        supSet.add(ss);
+      }
+    }
+  }
+
+  saveCache(c);
+}
+
+/**
  * Append unique new trait/secret entries from an AI result to the growing cache.
  * Skips duplicates. Respects MAX_POOL ceiling.
  * AIResult must carry supernaturalIds so secrets are saved to the right pool.
