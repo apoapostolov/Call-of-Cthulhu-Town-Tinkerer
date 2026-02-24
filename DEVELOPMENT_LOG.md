@@ -1,3 +1,114 @@
+## 2026-02-24 - Update AGENTS.md with Build and Restart Protocol
+
+Added a mandatory protocol for agents to build and restart the development
+server after every response. This ensures the environment is consistently
+verified against recent changes.
+
+### Changed files
+
+- `AGENTS.md` — Added "Build and Restart Protocol (Mandatory)" section under
+  Local Development Server.
+- `DEVELOPMENT_LOG.md` — This entry.
+
+### Verification
+
+- Project built successfully with `npm run build`.
+- Server restarted and confirmed responsive on `localhost:9091`.
+
+## 2026-02-24 - Parallel AI Batch Processing
+
+Improved AI generation speed by processing character batches in parallel
+rather than sequentially.
+
+### Changed files
+
+- `src/ai.ts`:
+  - Added `CONCURRENCY_LIMIT` (set to 3) to process multiple batches at once.
+  - Replaced the sequential `for` loop in `populateAIData` with a parallel
+    worker pool using `Promise.all`.
+  - Workers pull from a shared queue to ensure efficient distribution of work
+    regardless of individual batch response times.
+  - Updated `onProgress` to reflect total completed batches across all
+    active workers.
+
+### Build result
+
+9 modules — 102.7 kB JS / 9.77 kB CSS (no TypeScript errors)
+
+## 2026-02-24 - Robustify AI JSON Parsing and Reduce Batch Size
+
+Fixed an issue where large AI responses (Batch size 200) were failing to
+parse as valid JSON, likely due to truncation or subtle formatting errors
+(like trailing commas).
+
+### Changed files
+
+- `src/ai.ts`:
+  - Reduced `BATCH_SIZE` from 200 to 100 to increase reliability and prevent
+    response truncation/token limit issues.
+  - Updated `SYSTEM_PROMPT` to be even more emphatic about strict JSON output
+    without markdown backticks.
+  - Robustified `parseAIResponse` with a `clean()` helper that removes
+    trailing commas (a common LLM JSON error).
+  - Added a detailed console error preview of the first/last 200 characters of
+    failed JSON content for easier debugging.
+- `DEVELOPMENT_LOG.md` — This entry.
+
+### Verification
+
+- Project built successfully.
+- Server restarted on port 9091.
+
+## 2026-02-24 - Enhance AI Network Debugging and Fix Accessibility Warning
+
+I've refined the AI network layer to identify where the population process
+stalls and satisfied a browser accessibility requirement for the API key form.
+
+### Changed files
+
+- `src/ai.ts` — Updated `callOpenRouterWithRetry` to use `response.text()`
+  followed by manual `JSON.parse` instead of `response.json()`. Added granular
+  logs for:
+  - "Reading response body..."
+  - Bytes read from the wire.
+  - Success/failure of the outer OpenRouter envelope parsing.
+  - Detection of empty or malformed `choices` arrays.
+- `index.html` — Added a hidden username field (`<input type="text" name="username" style="display:none">`) inside the password form to satisfy accessibility requirements and remove the `[DOM] Password forms should have username fields` warning.
+- `DEVELOPMENT_LOG.md` — This entry.
+
+### Verification
+
+- Project built successfully.
+- Server restarted on port 9091.
+
+## 2026-02-24 - AI Debugging and Console Observability
+
+Fixed an issue where AI data population could stall silently. Added verbose
+tracing and ongoing pings to the console to help identify where the process
+hangs.
+
+### Changed files
+
+- `src/ai.ts` — Added `console.debug`, `console.info`, `console.warn`, and
+  `console.error` throughout the OpenRouter call chain. Traces now show:
+  - Batch start/end and total counts.
+  - Per-attempt fetch initiation and prompt length.
+  - Response status codes and parsing success/failure.
+  - Detailed error logs for network failures, rate limits (429), and server
+    errors (5xx).
+  - Explicit logging of 90s timeouts.
+- `src/main.ts` — Updated the `populateAiBtn` click handler with console
+  pings. The app now logs:
+  - Initialization status and environment mode.
+  - Progress updates (batch X/Y) with percentages.
+  - Result summaries (count of people/relationships generated).
+  - Cache update stats.
+  - Success/Failure terminal states.
+
+### Build result
+
+9 modules — 102.6 kB JS / 9.77 kB CSS (no TypeScript errors)
+
 ## 2026-02-24 - Fix AI stall and API key security
 
 **Root cause 1 (stall):** `callOpenRouterWithRetry` had no per-request timeout.
