@@ -1,7 +1,44 @@
+import type { AIPersonData } from "./ai";
+import { MAX_ADULTS, populateAIData, relKey } from "./ai";
+import { appendToCache, fillFromCache, getCacheStats } from "./cache";
 import { cthulhuData } from "./data";
 import type { Person, Stats } from "./logic";
 import { generateCthulhuStats, generatePopulation, mulberry32 } from "./logic";
+import { GDRIVE_PHOTOS, gdUrl } from "./photos";
 import "./style.css";
+
+let malePhotosSeed: string[] = [];
+let femalePhotosSeed: string[] = [];
+const malePhotos = GDRIVE_PHOTOS.hommes.map(gdUrl);
+const femalePhotos = GDRIVE_PHOTOS.femmes.map(gdUrl);
+
+function shufflePhotosWithSeed(seed: number): void {
+  const rng = mulberry32(seed + 999999);
+  malePhotosSeed = [...malePhotos];
+  femalePhotosSeed = [...femalePhotos];
+  for (let i = malePhotosSeed.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [malePhotosSeed[i], malePhotosSeed[j]] = [
+      malePhotosSeed[j],
+      malePhotosSeed[i],
+    ];
+  }
+  for (let i = femalePhotosSeed.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [femalePhotosSeed[i], femalePhotosSeed[j]] = [
+      femalePhotosSeed[j],
+      femalePhotosSeed[i],
+    ];
+  }
+}
+
+function getPhotoUrl(person: Person, seed: number): string | null {
+  const photos = person.gender === "male" ? malePhotosSeed : femalePhotosSeed;
+  if (!photos.length) return null;
+  const rng = mulberry32(seed ^ (person.id * 2654435761));
+  const idx = Math.floor(rng() * photos.length);
+  return photos[idx];
+}
 
 let currentPopulation: {
   people: Person[];
@@ -9,6 +46,39 @@ let currentPopulation: {
 } | null = null;
 let currentSeed = 12345;
 let totalPopulation = 1000;
+
+// AI enrichment state
+let aiData: Map<number, AIPersonData> = new Map();
+let aiRels: Map<string, string> = new Map();
+let aiController: AbortController | null = null;
+let aiDataFromCache = false;
+
+function getApiKey(): string {
+  return (
+    localStorage.getItem("openrouter_api_key") ||
+    (import.meta.env.VITE_OPENROUTER_API_KEY as string | undefined) ||
+    ""
+  );
+}
+
+function updateCacheStatus(): void {
+  const statusEl = document.getElementById("aiCacheStatus");
+  if (!statusEl) return;
+  const stats = getCacheStats();
+  const totalSecrets = stats.normal + stats.supernatural;
+  if (stats.traits === 0 && totalSecrets === 0) {
+    statusEl.textContent = "";
+    statusEl.className = "ai-cache-status";
+    return;
+  }
+  if (aiData.size > 0 && aiDataFromCache) {
+    statusEl.textContent = `📦 ${aiData.size.toLocaleString()} characters auto-filled from cache  ·  ${stats.traits.toLocaleString()} traits  ·  ${totalSecrets.toLocaleString()} secrets stored`;
+    statusEl.className = "ai-cache-status fulfilled";
+  } else {
+    statusEl.textContent = `📦 ${stats.traits.toLocaleString()} traits  ·  ${totalSecrets.toLocaleString()} secrets cached`;
+    statusEl.className = "ai-cache-status";
+  }
+}
 
 let currentJob: string | null = null;
 let currentPage = 0;
@@ -24,6 +94,25 @@ const regenerateBtn = document.getElementById(
 const randomSeedBtn = document.getElementById(
   "randomSeedBtn",
 ) as HTMLButtonElement;
+const populateAiBtn = document.getElementById(
+  "populateAiBtn",
+) as HTMLButtonElement;
+const aiSettingsBtn = document.getElementById(
+  "aiSettingsBtn",
+) as HTMLButtonElement;
+const aiSettingsOverlay = document.getElementById(
+  "aiSettingsOverlay",
+) as HTMLDivElement;
+const aiKeyInput = document.getElementById("aiKeyInput") as HTMLInputElement;
+const aiProgressOverlay = document.getElementById(
+  "aiProgressOverlay",
+) as HTMLDivElement;
+const aiProgressFill = document.getElementById(
+  "aiProgressFill",
+) as HTMLDivElement;
+const aiProgressText = document.getElementById(
+  "aiProgressText",
+) as HTMLParagraphElement;
 const categoriesEl = document.getElementById("categories") as HTMLDivElement;
 const summaryEl = document.getElementById("summary") as HTMLDivElement;
 const generatingEl = document.getElementById("generating") as HTMLDivElement;
@@ -50,10 +139,16 @@ function getPersonName(p: Person): string {
 
 function makeAvatarHtml(person: Person, _size = 48, isLarge = false): string {
   const emoji = person.gender === "male" ? "👨" : "👩";
+  const cls = isLarge ? "person-avatar-large" : "person-avatar";
   const placeholderCls = isLarge
     ? "person-avatar-placeholder-large"
     : "person-avatar-placeholder";
-  return `<div class="${placeholderCls}">${emoji}</div>`;
+  const url = getPhotoUrl(person, currentSeed);
+  if (!url) {
+    return `<div class="${placeholderCls}">${emoji}</div>`;
+  }
+  const fallback = `<div class='${placeholderCls}'>${emoji}</div>`;
+  return `<img src="${url}" class="${cls}" alt="" loading="lazy" onerror="this.outerHTML='${fallback.replace(/'/g, "&apos;")}'">`;
 }
 
 function formatStatsForFoundry(person: Person, stats: Stats): string {
@@ -176,11 +271,13 @@ function renderJobList() {
         ? ' <span class="badge-gay">🏳️‍🌈</span>'
         : "";
 
+    const aiPersonData = aiData.get(p.id);
     peopleHtml += `<div class="person-card ${p.gender}${p.isGay ? " gay" : ""}" data-person-id="${p.id}">
       ${makeAvatarHtml(p, 48, false)}
       <div class="person-info">
         <div class="person-name">${name}${gayBadge}</div>
         <div class="person-age">${p.age} y.o.</div>
+        ${aiPersonData ? `<div class="person-traits">${aiPersonData.traits}</div>` : ""}
         ${relations.length > 0 ? `<div class="person-relations">${relations.join(" • ")}</div>` : ""}
       </div>
     </div>`;
@@ -263,13 +360,17 @@ function showPersonDetail(personId: number) {
   if (person.spouseId !== null) {
     const spouse = people[person.spouseId];
     const spouseGayBadge = person.isGay ? " 🏳️‍🌈" : "";
+    const spouseTone = aiRels.get(relKey(person.id, spouse.id));
+    const spouseToneHtml = spouseTone
+      ? ` <span class="rel-tone">${spouseTone}</span>`
+      : "";
     familyHtml += `
       <div class="family-section">
         <h4>💑 Spouse${spouseGayBadge}</h4>
         <div class="family-members">
           <div class="family-member" data-person-id="${spouse.id}">
             ${spouse.gender === "male" ? "👨" : "👩"} ${getPersonName(spouse)}
-            <span class="relation-type">(${spouse.age} y.o., ${spouse.job || "None"})</span>
+            <span class="relation-type">(${spouse.age} y.o., ${spouse.job || "None"})</span>${spouseToneHtml}
           </div>
         </div>
       </div>
@@ -280,7 +381,9 @@ function showPersonDetail(personId: number) {
     const parentsHtml = person.parentIds
       .map((id) => {
         const p = people[id];
-        return `<div class="family-member" data-person-id="${p.id}">${p.gender === "male" ? "👨" : "👩"} ${getPersonName(p)} <span class="relation-type">(${p.age} y.o., ${p.job || "None"})</span></div>`;
+        const tone = aiRels.get(relKey(person.id, p.id));
+        const toneHtml = tone ? ` <span class="rel-tone">${tone}</span>` : "";
+        return `<div class="family-member" data-person-id="${p.id}">${p.gender === "male" ? "👨" : "👩"} ${getPersonName(p)} <span class="relation-type">(${p.age} y.o., ${p.job || "None"})</span>${toneHtml}</div>`;
       })
       .join("");
     familyHtml += `<div class="family-section"><h4>👨‍👩‍👦 Parents</h4><div class="family-members">${parentsHtml}</div></div>`;
@@ -290,7 +393,9 @@ function showPersonDetail(personId: number) {
     const siblingsHtml = person.siblingIds
       .map((id) => {
         const s = people[id];
-        return `<div class="family-member" data-person-id="${s.id}">${s.gender === "male" ? "👨" : "👩"} ${getPersonName(s)} <span class="relation-type">(${s.age} y.o., ${s.job || "None"})</span></div>`;
+        const tone = aiRels.get(relKey(person.id, s.id));
+        const toneHtml = tone ? ` <span class="rel-tone">${tone}</span>` : "";
+        return `<div class="family-member" data-person-id="${s.id}">${s.gender === "male" ? "👨" : "👩"} ${getPersonName(s)} <span class="relation-type">(${s.age} y.o., ${s.job || "None"})</span>${toneHtml}</div>`;
       })
       .join("");
     familyHtml += `<div class="family-section"><h4>👫 Siblings</h4><div class="family-members">${siblingsHtml}</div></div>`;
@@ -300,7 +405,9 @@ function showPersonDetail(personId: number) {
     const childrenHtml = person.childrenIds
       .map((id) => {
         const c = people[id];
-        return `<div class="family-member" data-person-id="${c.id}">${c.gender === "male" ? "👦" : "👧"} ${getPersonName(c)} <span class="relation-type">(${c.age} y.o., ${c.job || "None"})</span></div>`;
+        const tone = aiRels.get(relKey(person.id, c.id));
+        const toneHtml = tone ? ` <span class="rel-tone">${tone}</span>` : "";
+        return `<div class="family-member" data-person-id="${c.id}">${c.gender === "male" ? "👦" : "👧"} ${getPersonName(c)} <span class="relation-type">(${c.age} y.o., ${c.job || "None"})</span>${toneHtml}</div>`;
       })
       .join("");
     familyHtml += `<div class="family-section"><h4>👶 Children</h4><div class="family-members">${childrenHtml}</div></div>`;
@@ -338,6 +445,15 @@ function showPersonDetail(personId: number) {
           <strong>Gender:</strong> ${genderLabel}${person.isGay ? " 🏳️‍🌈" : ""}
         </div>
       </div>
+      ${(() => {
+        const ai = aiData.get(person.id);
+        if (!ai) return "";
+        return `<div class="ai-character-section">
+          <h4>✨ Character Notes</h4>
+          <div class="ai-traits-text">${ai.traits}</div>
+          <div class="ai-secret-text">🔒 ${ai.secret}</div>
+        </div>`;
+      })()}
       ${statsHtml}
       ${familyHtml}
     </div>
@@ -378,7 +494,13 @@ function showPersonDetail(personId: number) {
 }
 
 async function doGenerate() {
+  // Clear AI data whenever the population is regenerated
+  aiData = new Map();
+  aiRels = new Map();
+  aiDataFromCache = false;
+
   generatingEl.classList.add("active");
+  shufflePhotosWithSeed(currentSeed);
 
   try {
     currentPopulation = await generatePopulation(
@@ -390,7 +512,20 @@ async function doGenerate() {
         await new Promise((r) => setTimeout(r, 10));
       },
     );
+
+    // Auto-fill from cache before rendering so cards show traits immediately
+    const cached = fillFromCache(
+      currentPopulation.people,
+      currentSeed,
+      MAX_ADULTS,
+    );
+    if (cached) {
+      aiData = cached;
+      aiDataFromCache = true;
+    }
+
     renderCategories();
+    updateCacheStatus();
   } catch (e) {
     console.error(e);
   } finally {
@@ -451,6 +586,97 @@ randomSeedBtn.addEventListener("click", () => {
 
 modalOverlay.addEventListener("click", (e) => {
   if (e.target === modalOverlay) closeModal();
+});
+
+// ── AI settings modal ────────────────────────────────────────────────────
+function closeAiSettings(): void {
+  aiKeyInput.value = ""; // never leave key text in the DOM
+  aiSettingsOverlay.classList.remove("active");
+}
+
+aiSettingsBtn.addEventListener("click", () => {
+  aiKeyInput.value = ""; // never pre-fill with the stored key
+  aiKeyInput.placeholder = localStorage.getItem("openrouter_api_key")
+    ? "Key saved — enter a new key to replace"
+    : "sk-or-v1-…";
+  aiSettingsOverlay.classList.add("active");
+  setTimeout(() => aiKeyInput.focus(), 50);
+});
+document.getElementById("aiKeySaveBtn")?.addEventListener("click", () => {
+  const key = aiKeyInput.value.trim();
+  if (key) localStorage.setItem("openrouter_api_key", key);
+  closeAiSettings();
+});
+document.getElementById("aiKeyRemoveBtn")?.addEventListener("click", () => {
+  localStorage.removeItem("openrouter_api_key");
+  closeAiSettings();
+});
+document.getElementById("aiKeyCancelBtn")?.addEventListener("click", closeAiSettings);
+aiSettingsOverlay.addEventListener("click", (e) => {
+  if (e.target === aiSettingsOverlay) closeAiSettings();
+});
+
+// ── Populate AI Data button ───────────────────────────────────────────────
+populateAiBtn.addEventListener("click", async () => {
+  if (!currentPopulation) return;
+
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    aiKeyInput.value = "";
+    aiSettingsOverlay.classList.add("active");
+    return;
+  }
+
+  aiController = new AbortController();
+  aiProgressFill.style.width = "0%";
+  aiProgressText.textContent = "Starting…";
+  aiProgressOverlay.classList.add("active");
+  populateAiBtn.disabled = true;
+
+  try {
+    const result = await populateAIData(
+      currentPopulation.people,
+      currentSeed,
+      getPersonName,
+      apiKey,
+      (done, total, status) => {
+        const pct = total > 0 ? (done / total) * 100 : 0;
+        aiProgressFill.style.width = `${pct}%`;
+        aiProgressText.textContent = status;
+      },
+      aiController.signal,
+    );
+
+    aiData = result.people;
+    aiRels = result.rels;
+
+    // Persist newly generated traits and secrets to the growing cache
+    const { traitsAdded, secretsAdded } = appendToCache(result);
+    aiDataFromCache = false;
+    updateCacheStatus();
+    console.info(
+      `AI cache: +${traitsAdded} traits, +${secretsAdded} secrets appended.`,
+    );
+
+    aiProgressFill.style.width = "100%";
+    aiProgressText.textContent = `✅ Done — ${aiData.size} characters enriched.`;
+    setTimeout(() => aiProgressOverlay.classList.remove("active"), 1800);
+  } catch (e) {
+    const msg = (e as Error).message;
+    if ((e as Error).name === "AbortError") {
+      aiProgressText.textContent = "Cancelled.";
+    } else {
+      aiProgressText.textContent = `❌ ${msg}`;
+    }
+    setTimeout(() => aiProgressOverlay.classList.remove("active"), 2500);
+  } finally {
+    populateAiBtn.disabled = false;
+    aiController = null;
+  }
+});
+
+document.getElementById("aiCancelBtn")?.addEventListener("click", () => {
+  aiController?.abort();
 });
 
 // Initial generation

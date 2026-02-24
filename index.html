@@ -34,6 +34,15 @@
           <input type="number" id="seedInput" value="12345" />
           <button id="regenerateBtn">🔄 Regenerate</button>
           <button id="randomSeedBtn">🎲 Random Seed</button>
+          <button id="populateAiBtn" class="btn-ai">🤖 AI Data</button>
+          <button
+            id="aiSettingsBtn"
+            class="btn-ai-settings"
+            title="OpenRouter API Key"
+          >
+            ⚙️
+          </button>
+          <div id="aiCacheStatus" class="ai-cache-status"></div>
         </div>
       </div>
       <div class="categories" id="categories"></div>
@@ -49,6 +58,45 @@
     <div class="modal-overlay" id="modalOverlay">
       <div class="modal" id="modal"></div>
     </div>
+    <!-- AI settings overlay -->
+    <div class="ai-settings-overlay" id="aiSettingsOverlay">
+      <div class="ai-settings-modal">
+        <h3>🤖 OpenRouter API Key</h3>
+        <p>
+          Your key is stored in browser localStorage and sent directly to
+          OpenRouter. It is never displayed here after saving.
+        </p>
+        <form autocomplete="off" onsubmit="return false;" style="margin: 0">
+          <input
+            type="password"
+            id="aiKeyInput"
+            placeholder="sk-or-v1-…"
+            autocomplete="new-password"
+          />
+        </form>
+        <div class="ai-settings-actions">
+          <button id="aiKeySaveBtn">Save</button>
+          <button id="aiKeyRemoveBtn" class="btn-danger">🗑️ Remove Key</button>
+          <button id="aiKeyCancelBtn">Cancel</button>
+        </div>
+        <p class="ai-model-info">
+          Model: deepseek/deepseek-v3.2 · ~$0.02 per 1 000 NPCs
+        </p>
+      </div>
+    </div>
+
+    <!-- AI progress overlay -->
+    <div class="ai-progress-overlay" id="aiProgressOverlay">
+      <div class="ai-progress-modal">
+        <h3>🤖 Populating AI Data…</h3>
+        <div class="progress-bar">
+          <div class="progress-fill" id="aiProgressFill"></div>
+        </div>
+        <p id="aiProgressText" style="margin-top: 1rem; color: #888"></p>
+        <button class="ai-cancel-btn" id="aiCancelBtn">Cancel</button>
+      </div>
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

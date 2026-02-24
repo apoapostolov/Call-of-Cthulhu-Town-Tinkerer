@@ -13,9 +13,9 @@
     "typescript": "~5.8.3",
     "vite": "^6.4.1"
   },
-  "description": "",
+  "description": "Browser-based tool generating historically plausible 1920s town populations for Call of Cthulhu RPGs, complete with families, professions, and full 7th-edition character stats. Lightweight Vite/TypeScript app with seedable RNG, filtering, and exportable results for scenario prep.",
   "main": "index.js",
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "MIT"
 }
