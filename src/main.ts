@@ -583,7 +583,7 @@ function showPersonDetail(personId: number) {
           })
           .join("");
         return `<div class="ai-character-section" style="display:block">
-          <h4>⚗ ${cult.name}</h4>
+          <h4>⛧ ${cult.name}</h4>
           <div class="cult-modal-rank">${rankMeta.emoji} <strong>${member.rank}</strong> — ${rankMeta.description}</div>
           <div class="cult-modal-flavour">${cult.flavour}</div>
           ${member.contacts.length > 0 ? `<div class="family-section" style="margin-top:0.8rem"><h4>🔗 Known members</h4><div class="family-members">${contactsHtml}</div></div>` : ""}
@@ -661,6 +661,24 @@ async function doGenerate() {
     if (cached) {
       aiData = cached;
       aiDataFromCache = true;
+    } else {
+      // fallback: give every adult a basic secret drawn from the cult normal
+      // pool so the UI never shows huge swaths of blank characters when the
+      // cache is too small or AI hasn't been run yet.  This intentionally
+      // reuses CULT_NORMAL_SECRETS; the entries are mundane enough and help
+      // maintain atmosphere.
+      aiData = new Map();
+      const adults = currentPopulation.people
+        .filter((p) => p.job !== "Child")
+        .slice(0, MAX_ADULTS);
+      const tmpRng = mulberry32(currentSeed ^ 0xabcdef);
+      for (const p of adults) {
+        const secret =
+          CULT_NORMAL_SECRETS[
+            Math.floor(tmpRng() * CULT_NORMAL_SECRETS.length)
+          ];
+        aiData.set(p.id, { traits: "", secret, extraSecrets: [] });
+      }
     }
 
     renderCategories();
@@ -701,7 +719,8 @@ function enrichCultSecrets(cult: Cult): void {
     // if the person has no primary secret yet, give one now so the slot
     // in the UI is never blank (fixes empty‑secret bug)
     if (!data.secret) {
-      const base = CULT_NORMAL_SECRETS[Math.floor(rng() * CULT_NORMAL_SECRETS.length)];
+      const base =
+        CULT_NORMAL_SECRETS[Math.floor(rng() * CULT_NORMAL_SECRETS.length)];
       data.secret = `⚗ ${base}`;
     }
 
