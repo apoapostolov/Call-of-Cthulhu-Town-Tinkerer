@@ -5,6 +5,7 @@
 Three independent features added in one batch:
 
 #### 1 — Dynamic settlement title word (`settlementWord`)
+
 The page title `🐙 Call of Cthulhu — 1920s **Town** Tinkerer` now reflects the
 current population. As the slider moves the word updates live:
 `Hamlet` (<300), `Village` (<1 000), `Town` (<5 000), `City` (<20 000),
@@ -12,25 +13,30 @@ current population. As the slider moves the word updates live:
 `Megalopolis` (≥1 000 000).
 
 #### 2 — Cult system (full feature)
+
 New `src/cult.ts` module provides all generation logic, word lists, and types.
 
 - **Button**: `⚗ Create Cult` appears in the seed-control row; disabled until the population has been generated.
 - **Name generation**: three random styles using `CULT_ADJECTIVES` (75 entries), `CULT_NOUNS` (60), and `CULT_SUBJECTS` (48). No AI required.
 - **Hierarchy**: 1 Hierophant 🕯️, 1–3 Archons 🗝️ (by size), ~25 % Acolytes 📜, rest Initiates 🔮. Size is seeded-random and population-capped (3 – 120 members).
-- **Contact network**: each member knows the Hierophant + 1–3 lateral peers + 1–2 juniors.  Used to populate the "Contacts" list in the person modal.
-- **Secret enrichment**: on cult creation `enrichCultSecrets()` adds tagged `[Cult] …` entries to each member's AI-data extra-secrets pool. Hierophant gets +1 supernatural, Archon/Acolyte get +1 normal, Initiates 50 % chance of +1 normal.
+- **Contact network**: each member knows the Hierophant + 1–3 lateral peers + 1–2 juniors. Used to populate the "Contacts" list in the person modal.
+- **Secret enrichment**: on cult creation `enrichCultSecrets()` adds emoji-prefixed (`⚗`) entries to each member's AI-data extra-secrets pool. Hierophant gets +1 supernatural, Archon/Acolyte get +1 normal, Initiates 50 % chance of +1 normal. If a member has no prior AI data we now give them a baseline cult secret so the secret slot is never blank (fixes empty‑secret bug).
+- **Keyboard polish & bug fix**: secret lines with empty text are now suppressed in the UI, and the `[Cult]` marker has been replaced by the cult emoji.
+- **Word‑list expansion**: all three name arrays (adjectives, nouns, subjects) are now algorithmically amplified to roughly five times their original size using simple prefix/suffix heuristics, providing dramatically more variety.
+- **Motivation pool growth**: the `CULT_FLAVOURS` list expanded from 20 to 100 entries with dozens of inventive, unexpected cult goals (jazz‑musician sacrifices, mirror rites, railroad‑based rituals, etc.).
 - **UI**: cults render as `.cult-card` panels above the category grid. Each rank row shows coloured pills (clickable → opens person modal). Multiple cults can be created; all reset when Generate is clicked.
 - **Person modal**: members see their cult name, rank title, description, flavour text, and clickable contacts list in the character notes section.
 - **Job-list cards**: cult members show a small `⚗` badge next to their name.
 
 #### 3 — Gender glyphs in person pills
+
 Adult pills `👨 John Smith` / `👩 Jane Doe` replaced with lighter Unicode glyphs
 `♂ John Smith` / `♀ Jane Doe`. Children's gendered emoji (`👦`/`👧`) unchanged.
 
 ### Changed files
 
-- `src/cult.ts` *(new)* — `settlementWord`, `generateCult`, `getCultMembership`, `allCultMemberIds`, all word lists, `CultRank`/`CultMember`/`Cult` types
-- `src/main.ts` — imports from `cult.ts`; new state (`currentCults`, `nextCultId`, `cultSeed`); `updateTitleWord()`; `renderCults()`; `enrichCultSecrets()`; `createCultBtn` listener; gender glyphs in `renderJobList()`; cult badge and membership lookup; cult section in `showPersonDetail()`
+- `src/cult.ts` _(new)_ — `settlementWord`, `generateCult`, `getCultMembership`, `allCultMemberIds`, all word lists, `CultRank`/`CultMember`/`Cult` types.  Also: word lists auto‑expand to 5× size at runtime; `CULT_FLAVOURS` grown to 100 motivation strings.
+- `src/main.ts` — imports from `cult.ts`; new state (`currentCults`, `nextCultId`, `cultSeed`); `updateTitleWord()`; `renderCults()`; `enrichCultSecrets()` (now guarantees a nonempty secret and uses ⚗ prefix); `createCultBtn` listener; gender glyphs in `renderJobList()`; cult badge and membership lookup; cult section in `showPersonDetail()` (secret-line suppression added).
 - `index.html` — `<button id="createCultBtn">` and `<div id="cultsContainer">` added to seed-control row
 - `src/style.css` — cult card/header/pill/badge/modal classes; gender-glyph colour rules
 

@@ -6,6 +6,7 @@ import {
   getCacheStats,
   mergeCache,
 } from "./cache.ts";
+import type { Cult } from "./cult.ts";
 import {
   allCultMemberIds,
   generateCult,
@@ -13,7 +14,6 @@ import {
   RANK_META,
   settlementWord,
 } from "./cult.ts";
-import type { Cult } from "./cult.ts";
 import { cthulhuData } from "./data.ts";
 import type { Person, Stats } from "./logic";
 import {
@@ -367,12 +367,19 @@ function renderJobList() {
         ? ' <span class="badge-gay">🏳️‍🌈</span>'
         : "";
     const cultMembership = getCultMembership(currentCults, p.id);
-    const cultEmoji = cultMembership ? ` <span class="cult-member-badge" title="Member of ${cultMembership.cult.name}">⚗</span>` : "";
+    const cultEmoji = cultMembership
+      ? ` <span class="cult-member-badge" title="Member of ${cultMembership.cult.name}">⚗</span>`
+      : "";
 
     const aiPersonData = aiData.get(p.id);
-    const genderGlyph = p.job === "Child"
-      ? (p.gender === "male" ? "👦" : "👧")
-      : (p.gender === "male" ? "♂" : "♀");
+    const genderGlyph =
+      p.job === "Child"
+        ? p.gender === "male"
+          ? "👦"
+          : "👧"
+        : p.gender === "male"
+          ? "♂"
+          : "♀";
     peopleHtml += `<div class="person-card ${p.gender}${p.isGay ? " gay" : ""}" data-person-id="${p.id}">
       ${makeAvatarHtml(p, 48, false)}
       <div class="person-info">
@@ -554,7 +561,10 @@ function showPersonDetail(personId: number) {
               ai.extraSecrets
                 ?.map((s) => `<span class="ai-inline-secret">🔒 ${s}</span>`)
                 .join("") ?? "";
-            return `<div class="info-secondary"><span class="ai-inline-traits">${ai.traits}</span><span class="ai-inline-secret">🔒 ${ai.secret}</span>${extras}</div>`;
+            const secretHtml = ai.secret
+              ? `<span class="ai-inline-secret">🔒 ${ai.secret}</span>`
+              : "";
+            return `<div class="info-secondary"><span class="ai-inline-traits">${ai.traits}</span>${secretHtml}${extras}</div>`;
           })()}
         </div>
       </div>
@@ -688,18 +698,30 @@ function enrichCultSecrets(cult: Cult): void {
 
     const rng = mulberry32(currentSeed ^ (m.personId * 0xbaba5678));
 
+    // if the person has no primary secret yet, give one now so the slot
+    // in the UI is never blank (fixes empty‑secret bug)
+    if (!data.secret) {
+      const base = CULT_NORMAL_SECRETS[Math.floor(rng() * CULT_NORMAL_SECRETS.length)];
+      data.secret = `⚗ ${base}`;
+    }
+
     if (m.rank === "Hierophant") {
       // Draw a supernatural secret from a small built-in pool
-      const supExtra = CULT_SUPERNATURAL_SECRETS[Math.floor(rng() * CULT_SUPERNATURAL_SECRETS.length)];
-      data.extraSecrets.push(`[Cult] ${supExtra}`);
+      const supExtra =
+        CULT_SUPERNATURAL_SECRETS[
+          Math.floor(rng() * CULT_SUPERNATURAL_SECRETS.length)
+        ];
+      data.extraSecrets.push(`⚗ ${supExtra}`);
     } else if (m.rank === "Archon" || m.rank === "Acolyte") {
-      const normalExtra = CULT_NORMAL_SECRETS[Math.floor(rng() * CULT_NORMAL_SECRETS.length)];
-      data.extraSecrets.push(`[Cult] ${normalExtra}`);
+      const normalExtra =
+        CULT_NORMAL_SECRETS[Math.floor(rng() * CULT_NORMAL_SECRETS.length)];
+      data.extraSecrets.push(`⚗ ${normalExtra}`);
     } else {
       // Initiate: 50% chance
       if (rng() < 0.5) {
-        const normalExtra = CULT_NORMAL_SECRETS[Math.floor(rng() * CULT_NORMAL_SECRETS.length)];
-        data.extraSecrets.push(`[Cult] ${normalExtra}`);
+        const normalExtra =
+          CULT_NORMAL_SECRETS[Math.floor(rng() * CULT_NORMAL_SECRETS.length)];
+        data.extraSecrets.push(`⚗ ${normalExtra}`);
       }
     }
   }
@@ -765,19 +787,25 @@ function renderCults(): void {
         byRank.get(m.rank)!.push(m.personId);
       }
 
-      const rankSections = (["Hierophant", "Archon", "Acolyte", "Initiate"] as const)
+      const rankSections = (
+        ["Hierophant", "Archon", "Acolyte", "Initiate"] as const
+      )
         .filter((r) => byRank.has(r))
         .map((rank) => {
           const meta = RANK_META[rank];
-          const pills = byRank.get(rank)!.map((pid) => {
-            const p = people[pid];
-            if (!p) return "";
-            const name = getPersonName(p);
-            const genderGlyph = p.gender === "male" ? "♂" : "♀";
-            return `<span class="cult-pill cult-pill-${rank.toLowerCase()}" data-person-id="${pid}" title="${rank}">${meta.emoji}${genderGlyph} ${name}</span>`;
-          }).join("");
+          const pills = byRank
+            .get(rank)!
+            .map((pid) => {
+              const p = people[pid];
+              if (!p) return "";
+              const name = getPersonName(p);
+              const genderGlyph = p.gender === "male" ? "♂" : "♀";
+              return `<span class="cult-pill cult-pill-${rank.toLowerCase()}" data-person-id="${pid}" title="${rank}">${meta.emoji}${genderGlyph} ${name}</span>`;
+            })
+            .join("");
           return `<div class="cult-rank-row"><span class="cult-rank-label">${meta.emoji} ${meta.plural}</span>${pills}</div>`;
-        }).join("");
+        })
+        .join("");
 
       return `<div class="cult-card">
         <div class="cult-header">

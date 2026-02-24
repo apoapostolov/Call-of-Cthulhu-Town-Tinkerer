@@ -4,12 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Cult name word lists now auto‑expand at runtime to roughly five times their
+  original length using simple prefix/suffix heuristics, dramatically
+  increasing name variety.
+- The pool of cult motivations (`CULT_FLAVOURS`) has grown from 20 to 100
+  entries, introducing dozens of odd, engaging, and unexpected goals
+  (jazz‑musician sacrifices, mirror‑rites, phantom trains, etc.).
+- Cult secrets and extras are now prefixed with the ⚗ emoji instead of the
+  literal string `[Cult]`.
+- When a new cult is created a baseline cult secret is assigned to any member
+  who previously lacked AI data; this guarantees the secret field is never
+  empty.
+
 ### Changed
 
 - Exported character text now follows the exact layout used by the keeper's
   example (name/age line, stat rows, Combat section, skills comma-separated,
   standalone Languages line). Removes extra prefixes so the output can be
   pasted directly into Foundry VTT.
+
+### Fixed
+
+- Bug where cult members could display an empty secret was fixed; empty
+  secret lines are now suppressed in the UI to avoid blank 🔒 entries.
+- Minor wording update following the cult-secret emoji change.
 
 ### Added
 
