@@ -1,3 +1,31 @@
+## 2026-02-24 - Translate job skill profiles to English
+
+**Root cause:** Several jobs in the embedded data still used French skill
+names (e.g. `Esquive`, `Comptabilité`, `Arts et métiers (Mécanique)`), which
+blew the strict Foundry character sheet format and forced users to manually
+edit the output. The original Google Sites scraper already contained a
+comprehensive FR→EN map in `work/`, so the fix was to surface that mapping
+and apply it during stat generation.
+
+### Changed files
+
+- `src/data.ts` — added `skillTranslations` export with the full translation
+  table derived from the work folder.
+- `src/logic.ts` — imported `skillTranslations` and translated all profile
+  skill keys before rolling values; ensured generated `Stats.Skills` are in
+  English.
+- `src/cache.ts` / `src/main.ts` — added explicit `.ts` extensions to a few
+  imports (`./logic`, `./photos`) which were causing resolution errors in
+  tooling.
+
+### Verification
+
+- Ran a standalone `ts-node` snippet to produce a sheet for an
+  `Auto Mechanic` and confirmed every skill name appeared in English.
+- Rebuilt and ran the web app; manual population samples now export clean,
+  English-only sheets that match the format example.
+
+
 ## 2026-02-24 - Strict Foundry export format
 
 - Reworked `formatStatsForFoundry` output to exactly match the sheet layout

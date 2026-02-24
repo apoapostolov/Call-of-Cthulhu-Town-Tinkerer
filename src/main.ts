@@ -3,8 +3,8 @@ import { MAX_ADULTS, populateAIData, relKey } from "./ai.ts";
 import { appendToCache, fillFromCache, getCacheStats } from "./cache.ts";
 import { cthulhuData } from "./data.ts";
 import type { Person, Stats } from "./logic";
-import { generateCthulhuStats, generatePopulation, mulberry32 } from "./logic";
-import { GDRIVE_PHOTOS, gdUrl } from "./photos";
+import { generateCthulhuStats, generatePopulation, mulberry32 } from "./logic.ts";
+import { GDRIVE_PHOTOS, gdUrl } from "./photos.ts";
 import "./style.css";
 
 console.info("[App] Call of Cthulhu - 1920s Town Tinkerer starting...");
@@ -215,15 +215,13 @@ function formatStatsForFoundry(person: Person, stats: Stats): string {
     ([n]) => /language/i.test(n) || n === "Own Language",
   );
   const otherEntries = entries.filter(
-    ([n]) => !( /language/i.test(n) || n === "Own Language" ),
+    ([n]) => !(/language/i.test(n) || n === "Own Language"),
   );
   if (otherEntries.length > 0) {
     // alphabetical for consistent ordering
     otherEntries.sort((a, b) => a[0].localeCompare(b[0]));
     text += `Skills\n`;
-    text += otherEntries
-      .map(([n, v]) => `${n} ${v}%`)
-      .join(`, `);
+    text += otherEntries.map(([n, v]) => `${n} ${v}%`).join(`, `);
     text += `\n`;
   }
   if (langEntries.length > 0) {

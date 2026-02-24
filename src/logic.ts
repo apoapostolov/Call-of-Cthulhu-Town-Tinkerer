@@ -1,10 +1,16 @@
-import { cthulhuData, JOB_FEMALE_RATIO, weaponsList, jobSkillProfiles } from './data';
+import {
+  cthulhuData,
+  JOB_FEMALE_RATIO,
+  jobSkillProfiles,
+  skillTranslations,
+  weaponsList,
+} from "./data.ts";
 
 export interface Person {
   id: number;
   firstNameIdx: number;
   lastNameIdx: number;
-  gender: 'male' | 'female';
+  gender: "male" | "female";
   age: number;
   job: string | null;
   spouseId: number | null;
@@ -48,10 +54,10 @@ export function mulberry32(a: number) {
 export async function generatePopulation(
   totalPopulation: number,
   baseSeed: number,
-  onProgress?: (text: string, percent: number) => Promise<void>
+  onProgress?: (text: string, percent: number) => Promise<void>,
 ): Promise<{ people: Person[]; jobIndex: Record<string, number[]> }> {
   const showProgress = totalPopulation > 10000;
-  
+
   if (showProgress && onProgress) {
     await onProgress("Initializing...", 0);
   }
@@ -64,7 +70,10 @@ export async function generatePopulation(
   for (const cat of Object.values(cthulhuData.jobs)) {
     for (const job of cat.jobs) {
       if (totalPopulation >= job.threshold) {
-        jobCounts[job.name] = Math.max(1, Math.floor(totalPopulation * job.ratio));
+        jobCounts[job.name] = Math.max(
+          1,
+          Math.floor(totalPopulation * job.ratio),
+        );
         jobIndex[job.name] = [];
       }
     }
@@ -84,11 +93,17 @@ export async function generatePopulation(
     let parent2Id: number | null = null;
 
     const isSeniorFamily = rng() < 0.08;
-    const p1Age = isSeniorFamily ? Math.floor(rng() * 26) + 65 : Math.floor(rng() * 35) + 30;
+    const p1Age = isSeniorFamily
+      ? Math.floor(rng() * 26) + 65
+      : Math.floor(rng() * 35) + 30;
     const isGayCouple = rng() < 0.03;
     const p1Gender = rng() > 0.5 ? "male" : "female";
     const p1NameIdx = Math.floor(
-      rng() * (p1Gender === "male" ? cthulhuData.firstNamesMale : cthulhuData.firstNamesFemale).length
+      rng() *
+        (p1Gender === "male"
+          ? cthulhuData.firstNamesMale
+          : cthulhuData.firstNamesFemale
+        ).length,
     );
 
     people.push({
@@ -109,9 +124,17 @@ export async function generatePopulation(
 
     if (remaining > 0 && rng() > 0.15) {
       const p2Age = Math.max(18, p1Age + Math.floor(rng() * 10) - 5);
-      const p2Gender = isGayCouple ? p1Gender : p1Gender === "male" ? "female" : "male";
+      const p2Gender = isGayCouple
+        ? p1Gender
+        : p1Gender === "male"
+          ? "female"
+          : "male";
       const p2NameIdx = Math.floor(
-        rng() * (p2Gender === "male" ? cthulhuData.firstNamesMale : cthulhuData.firstNamesFemale).length
+        rng() *
+          (p2Gender === "male"
+            ? cthulhuData.firstNamesMale
+            : cthulhuData.firstNamesFemale
+          ).length,
       );
 
       people.push({
@@ -132,15 +155,22 @@ export async function generatePopulation(
       remaining--;
     }
 
-    const numChildren = Math.min(remaining, Math.max(0, familySize - (parent2Id !== null ? 2 : 1)));
+    const numChildren = Math.min(
+      remaining,
+      Math.max(0, familySize - (parent2Id !== null ? 2 : 1)),
+    );
     const childrenIds: number[] = [];
 
     for (let i = 0; i < numChildren; i++) {
       const childGender = rng() > 0.5 ? "male" : "female";
       const childAge = Math.max(1, p1Age - 18 - Math.floor(rng() * 15));
-      const childNames = childGender === "male" ? cthulhuData.firstNamesMale : cthulhuData.firstNamesFemale;
+      const childNames =
+        childGender === "male"
+          ? cthulhuData.firstNamesMale
+          : cthulhuData.firstNamesFemale;
       const childNameIdx = Math.floor(rng() * childNames.length);
-      const parentIds = parent2Id !== null ? [parent1Id, parent2Id] : [parent1Id];
+      const parentIds =
+        parent2Id !== null ? [parent1Id, parent2Id] : [parent1Id];
 
       people.push({
         id: personId,
@@ -190,7 +220,12 @@ export async function generatePopulation(
   let studentCount = 0;
   for (const person of people) {
     if (person.job !== null) continue;
-    if (person.age >= 16 && person.age <= 25 && studentCount < maxStudents && rng() < 0.25) {
+    if (
+      person.age >= 16 &&
+      person.age <= 25 &&
+      studentCount < maxStudents &&
+      rng() < 0.25
+    ) {
       person.job = "Student";
       jobIndex["Student"].push(person.id);
       studentCount++;
@@ -209,8 +244,12 @@ export async function generatePopulation(
   const maleJobSlots: string[] = [];
 
   for (const [jobName, count] of Object.entries(jobCounts)) {
-    if (["Child", "Retiree", "Housewife", "Student"].includes(jobName)) continue;
-    const femaleRatio = JOB_FEMALE_RATIO[jobName] !== undefined ? JOB_FEMALE_RATIO[jobName] : 0.15;
+    if (["Child", "Retiree", "Housewife", "Student"].includes(jobName))
+      continue;
+    const femaleRatio =
+      JOB_FEMALE_RATIO[jobName] !== undefined
+        ? JOB_FEMALE_RATIO[jobName]
+        : 0.15;
     const numFemale = Math.round(count * femaleRatio);
     const numMale = count - numFemale;
     for (let i = 0; i < numFemale; i++) femaleJobSlots.push(jobName);
@@ -220,7 +259,9 @@ export async function generatePopulation(
   shuffleArr(femaleJobSlots);
   shuffleArr(maleJobSlots);
 
-  const femaleWorkingAge = people.filter((p) => p.job === null && p.gender === "female" && p.age >= 16 && p.age < 65);
+  const femaleWorkingAge = people.filter(
+    (p) => p.job === null && p.gender === "female" && p.age >= 16 && p.age < 65,
+  );
   shuffleArr(femaleWorkingAge);
   const numHousewives = Math.floor(femaleWorkingAge.length * 0.8);
   for (let i = 0; i < numHousewives; i++) {
@@ -228,7 +269,9 @@ export async function generatePopulation(
     jobIndex["Housewife"].push(femaleWorkingAge[i].id);
   }
 
-  const allWorkingAdults = people.filter((p) => p.job === null && p.age >= 16 && p.age < 65);
+  const allWorkingAdults = people.filter(
+    (p) => p.job === null && p.age >= 16 && p.age < 65,
+  );
   shuffleArr(allWorkingAdults);
 
   let fSlotIdx = 0;
@@ -268,7 +311,14 @@ export async function generatePopulation(
 }
 
 function roll3D6(rng: () => number) {
-  return Math.floor(rng() * 6) + 1 + Math.floor(rng() * 6) + 1 + Math.floor(rng() * 6) + 1;
+  return (
+    Math.floor(rng() * 6) +
+    1 +
+    Math.floor(rng() * 6) +
+    1 +
+    Math.floor(rng() * 6) +
+    1
+  );
 }
 
 function roll2D6Plus6(rng: () => number) {
@@ -308,7 +358,8 @@ export function generateCthulhuStats(person: Person, rng: () => number): Stats {
   let edu = roll2D6Plus6(rng) * 5;
   let luck = roll3D6(rng) * 5;
 
-  const profile = jobSkillProfiles[person.job || ""] || jobSkillProfiles["_default"];
+  const profile =
+    jobSkillProfiles[person.job || ""] || jobSkillProfiles["_default"];
   if (profile.statBonus) {
     if (profile.statBonus.FOR) str = Math.min(99, str + profile.statBonus.FOR);
     if (profile.statBonus.CON) con = Math.min(99, con + profile.statBonus.CON);
@@ -371,11 +422,13 @@ export function generateCthulhuStats(person: Person, rng: () => number): Stats {
   const { db, build } = getDamageBonusAndBuild(str, siz);
   const mov = getMove(str, dex, siz, person.age);
 
+  // translate any French keys from the profile using our mapping
   const skills: Record<string, number> = {};
   if (profile.skills) {
     for (const [skillName, range] of Object.entries(profile.skills)) {
       const [min, max] = range as [number, number];
-      skills[skillName] = Math.floor(rng() * (max - min + 1)) + min;
+      const enName = skillTranslations[skillName] || skillName;
+      skills[enName] = Math.floor(rng() * (max - min + 1)) + min;
     }
   }
   if (profile.credit) {

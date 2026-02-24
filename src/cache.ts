@@ -5,9 +5,9 @@
  * fillFromCache() assigns entries deterministically without an AI call.
  */
 
-import type { AIPersonData, AIResult } from "./ai";
-import type { Person } from "./logic";
-import { mulberry32 } from "./logic";
+import type { AIPersonData, AIResult } from "./ai.ts";
+import type { Person } from "./logic.ts";
+import { mulberry32 } from "./logic.ts";
 
 const CACHE_KEY = "coc_ai_cache";
 /** Stop appending once a single pool reaches this size (~1.5 MB per pool is fine). */
