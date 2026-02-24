@@ -75,6 +75,28 @@ dependencies (`ts-node`, `typescript`).
 - Project built successfully.
 - Server restarted and confirmed responsive on `localhost:9091`.
 
+## 2026-02-24 - Merge prebuilt cache on startup
+
+The prebuilt cache JSON is now shipped in `public/` and gets fetched every
+session.  Instead of only seeding localStorage on a pristine install, the
+app calls a new `mergeCache()` helper which unions the file contents with
+any existing entries and respects the `MAX_POOL` ceiling.  This guarantees
+that a newly generated town will be populated with a trait and secret for
+every adult (plus 1 % supernatural secrets) even if the AI button is
+never pressed.
+
+### Changed files
+
+- `src/cache.ts` – added `mergeCache()` implementation and export.
+- `src/main.ts` – updated `seedCacheFromFile()` to unconditionally pull and
+  merge the prebuilt JSON; removed first-run check.
+
+### Verification
+
+- Confirmed that the public folder contains `prebuilt_cache.json`.
+- Loaded app in dev server, cleared localStorage, generated town, and saw
+  immediate traits/secrets without providing an API key.
+
 ## 2026-02-24 - Fix AI response truncation and refine batch size
 
 **Root cause:** Large NPC batches (100+) combined with relationship data were
