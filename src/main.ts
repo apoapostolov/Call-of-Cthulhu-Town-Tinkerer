@@ -730,17 +730,17 @@ function enrichCultSecrets(cult: Cult): void {
         CULT_SUPERNATURAL_SECRETS[
           Math.floor(rng() * CULT_SUPERNATURAL_SECRETS.length)
         ];
-      data.extraSecrets.push(`⚗ ${supExtra}`);
+      data.extraSecrets.push(`⛧ ${supExtra}`);
     } else if (m.rank === "Archon" || m.rank === "Acolyte") {
       const normalExtra =
         CULT_NORMAL_SECRETS[Math.floor(rng() * CULT_NORMAL_SECRETS.length)];
-      data.extraSecrets.push(`⚗ ${normalExtra}`);
+      data.extraSecrets.push(`⛧ ${normalExtra}`);
     } else {
       // Initiate: 50% chance
       if (rng() < 0.5) {
         const normalExtra =
           CULT_NORMAL_SECRETS[Math.floor(rng() * CULT_NORMAL_SECRETS.length)];
-        data.extraSecrets.push(`⚗ ${normalExtra}`);
+        data.extraSecrets.push(`⛧ ${normalExtra}`);
       }
     }
   }

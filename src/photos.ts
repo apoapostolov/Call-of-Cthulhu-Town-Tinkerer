@@ -789,5 +789,9 @@ export const GDRIVE_PHOTOS = {
 };
 
 export function gdUrl(id: string): string {
-  return `https://drive.google.com/thumbnail?id=${id}&sz=w200`;
+  // Use lh3.googleusercontent.com directly instead of drive.google.com/thumbnail
+  // to avoid auth-cookie interference when the browser is logged into Google.
+  // The drive.google.com/thumbnail endpoint redirects here anyway; going direct
+  // is faster and bypasses the session-dependent checks.
+  return `https://lh3.googleusercontent.com/d/${id}=w200`;
 }

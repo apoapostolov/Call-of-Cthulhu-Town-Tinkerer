@@ -37,6 +37,5 @@ All notable changes to this project will be documented in this file.
   for reliability and performance.
 - Added comprehensive console logging for easier debugging.
 
-*(Fixes and other minor technical adjustments were performed during
-development but are not included in this release note.)*
-
+_(Fixes and other minor technical adjustments were performed during
+development but are not included in this release note.)_

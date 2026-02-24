@@ -92,7 +92,7 @@ export function mergeCache(other: Partial<AICache>): void {
   if (Array.isArray(other.traits)) {
     for (const t of other.traits) {
       if (c.traits.length >= MAX_POOL) break;
-      const tt = t.trim();
+      const tt = t.trim().replace(/,\s*/g, ", ");
       if (tt && !traitsSet.has(tt)) {
         c.traits.push(tt);
         traitsSet.add(tt);
@@ -141,7 +141,7 @@ export function appendToCache(result: AIResult): {
   let secretsAdded = 0;
 
   for (const [id, data] of result.people.entries()) {
-    const trait = data.traits.trim();
+    const trait = data.traits.trim().replace(/,\s*/g, ", ");
     const secret = data.secret.trim();
     const isSup = result.supernaturalIds.has(id);
 
@@ -211,18 +211,17 @@ export function fillFromCache(
   if (adults.length === 0) return null;
 
   // Mirror the exact supernatural-selection logic in ai.ts
+  // Teens (age 13–17) are excluded from supernatural secrets
+  const supEligible = adults.filter((p) => p.age >= 18);
   const rng = mulberry32(seed ^ 0xdeadbeef); // same constant as ai.ts
-  const supCount = Math.max(1, Math.round(adults.length * 0.01));
-  const shuffledAdults = [...adults];
-  for (let i = shuffledAdults.length - 1; i > 0; i--) {
+  const supCount = Math.max(1, Math.round(supEligible.length * 0.01));
+  const shuffledSup = [...supEligible];
+  for (let i = shuffledSup.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
-    [shuffledAdults[i], shuffledAdults[j]] = [
-      shuffledAdults[j],
-      shuffledAdults[i],
-    ];
+    [shuffledSup[i], shuffledSup[j]] = [shuffledSup[j], shuffledSup[i]];
   }
   const supernaturalIds = new Set<number>();
-  for (let i = 0; i < supCount; i++) supernaturalIds.add(shuffledAdults[i].id);
+  for (let i = 0; i < supCount; i++) supernaturalIds.add(shuffledSup[i].id);
 
   const normalAdults = adults.filter((p) => !supernaturalIds.has(p.id));
   const supAdults = adults.filter((p) => supernaturalIds.has(p.id));
@@ -261,6 +260,33 @@ export function fillFromCache(
       ? c.supernaturalSecrets[supSecretIndices[si++]]
       : c.normalSecrets[normalSecretIndices[ni++]];
     result.set(p.id, { traits, secret });
+  }
+
+  // Extra secrets for adults aged 18+ — drawn from remainder of the normal pool
+  const extraRng = mulberry32(seed ^ 0xef7a1b23);
+  for (const p of sortedAdults) {
+    if (p.age < 18) continue; // teens receive at most one basic secret
+    const data = result.get(p.id)!;
+    const isSup = supernaturalIds.has(p.id);
+    const extraSecrets: string[] = [];
+
+    if (isSup) {
+      // 1% of supernatural adults also carry a mundane normal secret
+      if (extraRng() < 0.01 && ni < normalSecretIndices.length) {
+        extraSecrets.push(c.normalSecrets[normalSecretIndices[ni++]]);
+      }
+    } else {
+      // 10% of normal adults carry a 2nd secret
+      if (extraRng() < 0.1 && ni < normalSecretIndices.length) {
+        extraSecrets.push(c.normalSecrets[normalSecretIndices[ni++]]);
+        // 33% of those also carry a 3rd secret
+        if (extraRng() < 0.33 && ni < normalSecretIndices.length) {
+          extraSecrets.push(c.normalSecrets[normalSecretIndices[ni++]]);
+        }
+      }
+    }
+
+    if (extraSecrets.length > 0) data.extraSecrets = extraSecrets;
   }
 
   return result;

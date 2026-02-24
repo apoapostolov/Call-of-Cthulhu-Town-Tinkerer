@@ -10,7 +10,8 @@ const MAX_RETRIES = 3;
 
 export interface AIPersonData {
   traits: string; // "brave, reckless, greedy"
-  secret: string; // "Embezzling from employer"
+  secret: string; // primary secret
+  extraSecrets?: string[]; // additional secrets for adults (assigned by fillFromCache)
 }
 
 export interface AIResult {
@@ -315,13 +316,15 @@ export async function populateAIData(
   onProgress: (batchDone: number, batchTotal: number, status: string) => void,
   signal?: AbortSignal,
 ): Promise<AIResult> {
-  // Select 1% of adults to receive supernatural secrets deterministically
+  // Select 1% of adults (age ≥ 18) to receive supernatural secrets deterministically
   const rng = mulberry32(seed ^ 0xdeadbeef);
   const adults = people.filter((p) => p.job !== "Child").slice(0, MAX_ADULTS);
 
-  const supernaturalCount = Math.max(1, Math.round(adults.length * 0.01));
+  // Teens (age 13–17) are excluded from supernatural secrets
+  const supEligible = adults.filter((p) => p.age >= 18);
+  const supernaturalCount = Math.max(1, Math.round(supEligible.length * 0.01));
   const supernaturalIds = new Set<number>();
-  const shuffled = [...adults];
+  const shuffled = [...supEligible];
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
@@ -380,7 +383,7 @@ export async function populateAIData(
             typeof it.s === "string"
           ) {
             result.people.set(it.i, {
-              traits: it.t.trim(),
+              traits: it.t.replace(/,\s*/g, ", ").trim(),
               secret: it.s.trim(),
             });
           }
