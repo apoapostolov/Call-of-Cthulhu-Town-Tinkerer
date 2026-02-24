@@ -35,6 +35,9 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Translated French skill names found in job profiles to English automatically;
+  exported character sheets now strictly contain English skill names, resolving
+  formatting issues during Foundry VTT import.
 - Fixed a silent stalling issue where hanging network requests would block the AI generation progress indefinitely.
 - Corrected various TypeScript type errors following the port from vanilla JavaScript.
 - Standardized file structure and moved all build artifacts out of the source tree.
