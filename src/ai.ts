@@ -127,11 +127,9 @@ async function callOpenRouterWithRetry(
       90_000,
     );
     if (signal) {
-      signal.addEventListener(
-        "abort",
-        () => timeoutCtrl.abort(signal.reason),
-        { once: true },
-      );
+      signal.addEventListener("abort", () => timeoutCtrl.abort(signal.reason), {
+        once: true,
+      });
     }
 
     try {
@@ -163,9 +161,7 @@ async function callOpenRouterWithRetry(
         continue;
       }
       throw err.name === "TimeoutError" || err.name === "AbortError"
-        ? new Error(
-            "Request timed out — check your connection and try again",
-          )
+        ? new Error("Request timed out — check your connection and try again")
         : new Error(`Network error: ${err.message}`);
     } finally {
       clearTimeout(timeoutId);

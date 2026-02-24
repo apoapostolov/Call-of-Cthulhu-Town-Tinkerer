@@ -611,7 +611,9 @@ document.getElementById("aiKeyRemoveBtn")?.addEventListener("click", () => {
   localStorage.removeItem("openrouter_api_key");
   closeAiSettings();
 });
-document.getElementById("aiKeyCancelBtn")?.addEventListener("click", closeAiSettings);
+document
+  .getElementById("aiKeyCancelBtn")
+  ?.addEventListener("click", closeAiSettings);
 aiSettingsOverlay.addEventListener("click", (e) => {
   if (e.target === aiSettingsOverlay) closeAiSettings();
 });
