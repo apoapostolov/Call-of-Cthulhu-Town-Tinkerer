@@ -1,5 +1,5 @@
-import type { Person } from "./logic";
-import { mulberry32 } from "./logic";
+import type { Person } from "./logic.ts";
+import { mulberry32 } from "./logic.ts";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 export const AI_MODEL = "x-ai/grok-4.1-fast"; // switched to a still-fast free variant
@@ -23,10 +23,11 @@ export function relKey(a: number, b: number): string {
   return `${Math.min(a, b)}-${Math.max(a, b)}`;
 }
 
-const SYSTEM_PROMPT = `You generate 1920s Call of Cthulhu RPG NPC data. Rules:
-- TRAITS: 2–3 comma-separated personality descriptors. At least 1 must be a flaw or vice.
-- SECRET: ≤6 words, terse present tense. Persons marked [!] must have a SUPERNATURAL secret (cultist, sees ghosts, cursed relic, etc.). All others: era-appropriate personal secret (affair, debt, crime, addiction, hidden past).
-- RELATIONSHIP WORD: Single evocative word for the emotional dynamic.
+const SYSTEM_PROMPT = `You generate 1920s‑era character data suitable for tabletop games.
+Rules:
+- TRAITS: 2–3 comma-separated personality descriptors. At least one must be a flaw, vice, or eccentricity.
+- SECRET: ≤6 words, terse present tense. 99% of characters should have a completely mundane, era-appropriate secret (affair, debt, crime, addiction, hidden past, etc.). Only 1% may be marked [!] and then the secret should be supernatural in nature (cult member, sees ghosts, cursed relic, etc.), but nothing needs to be Call‑of‑Cthulhu‑specific as long as it fits 1920s pulp atmosphere. Do not make all secrets supernatural.
+- RELATIONSHIP WORD: Single evocative word capturing the emotional tone between two people.
 
 CRITICAL: Output ONLY valid JSON. No markdown backticks, no preamble, no tail. Keep values extremely short to avoid truncation.
 The JSON must strictly match this structure:
@@ -178,7 +179,8 @@ async function callOpenRouterWithRetry(
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
-          "HTTP-Referer": window.location.origin,
+          "HTTP-Referer":
+            typeof window !== "undefined" ? window.location.origin : "",
           "X-Title": "Call of Cthulhu Town Tinkerer",
         },
         body: JSON.stringify({
