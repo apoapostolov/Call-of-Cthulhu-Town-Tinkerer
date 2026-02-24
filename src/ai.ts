@@ -3,7 +3,8 @@ import { mulberry32 } from "./logic";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 export const AI_MODEL = "deepseek/deepseek-v3.2";
-const BATCH_SIZE = 200;
+const BATCH_SIZE = 50;
+const CONCURRENCY_LIMIT = 3; // Number of parallel requests to OpenRouter
 export const MAX_ADULTS = 5000; // cap to avoid runaway cost
 const MAX_RETRIES = 3;
 
@@ -23,11 +24,13 @@ export function relKey(a: number, b: number): string {
 }
 
 const SYSTEM_PROMPT = `You generate 1920s Call of Cthulhu RPG NPC data. Rules:
-- TRAITS: 2–4 comma-separated personality descriptors. At least 1 must be a flaw or vice.
-- SECRET: ≤8 words, terse present tense. Persons marked [!] must have a SUPERNATURAL secret (cultist, sees ghosts, cursed relic, etc.). All others: era-appropriate personal secret (affair, debt, crime, addiction, hidden past).
-- RELATIONSHIP WORD: Single evocative word for the emotional dynamic between two people.
-Output ONLY valid JSON, no markdown, no explanation:
-{"p":[{"i":<id>,"t":"trait1,trait2,trait3","s":"brief secret"},...], "r":[{"a":<id>,"b":<id>,"w":"word"},...]}`;
+- TRAITS: 2–3 comma-separated personality descriptors. At least 1 must be a flaw or vice.
+- SECRET: ≤6 words, terse present tense. Persons marked [!] must have a SUPERNATURAL secret (cultist, sees ghosts, cursed relic, etc.). All others: era-appropriate personal secret (affair, debt, crime, addiction, hidden past).
+- RELATIONSHIP WORD: Single evocative word for the emotional dynamic.
+
+CRITICAL: Output ONLY valid JSON. No markdown backticks, no preamble, no tail. Keep values extremely short to avoid truncation.
+The JSON must strictly match this structure:
+{"p":[{"i":<id>,"t":"trait1,trait2","s":"secret"},...], "r":[{"a":<id>,"b":<id>,"w":"word"},...]}`;
 
 function buildBatchPrompt(
   batch: Person[],
@@ -75,35 +78,51 @@ function buildBatchPrompt(
 }
 
 function parseAIResponse(raw: string): { p: unknown[]; r: unknown[] } {
+  const clean = (s: string) => {
+    // Basic repair for trailing commas in arrays/objects
+    return s.replace(/,\s*([\]}])/g, "$1");
+  };
+
   // Direct JSON
   try {
-    return JSON.parse(raw) as { p: unknown[]; r: unknown[] };
+    return JSON.parse(clean(raw)) as { p: unknown[]; r: unknown[] };
   } catch {
     /* fall through */
   }
+
   // Markdown code block
   const mdMatch = raw.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
   if (mdMatch) {
     try {
-      return JSON.parse(mdMatch[1]) as { p: unknown[]; r: unknown[] };
+      return JSON.parse(clean(mdMatch[1])) as { p: unknown[]; r: unknown[] };
     } catch {
       /* fall through */
     }
   }
+
   // Bare JSON object anywhere in string
   const curly = raw.indexOf("{");
   const lastCurly = raw.lastIndexOf("}");
   if (curly !== -1 && lastCurly > curly) {
+    const candidate = raw.slice(curly, lastCurly + 1);
     try {
-      return JSON.parse(raw.slice(curly, lastCurly + 1)) as {
-        p: unknown[];
-        r: unknown[];
-      };
+      return JSON.parse(clean(candidate)) as { p: unknown[]; r: unknown[] };
     } catch {
       /* fall through */
     }
   }
-  throw new Error("Could not parse AI response as JSON");
+
+  console.error("[AI] parseAIResponse failed. Raw content preview:", {
+    start: raw.slice(0, 200),
+    end: raw.slice(-200),
+    length: raw.length,
+    isTruncated: !raw.trim().endsWith("}"),
+  });
+  throw new Error(
+    raw.length > 10000 && !raw.trim().endsWith("}")
+      ? "AI response looks truncated (too many NPCs in batch?)"
+      : "Could not parse AI response as JSON",
+  );
 }
 
 async function callOpenRouterWithRetry(
@@ -111,25 +130,45 @@ async function callOpenRouterWithRetry(
   apiKey: string,
   signal?: AbortSignal,
 ): Promise<string> {
+  console.debug(
+    `[AI] callOpenRouterWithRetry: Starting fetch. Prompt length: ${prompt.length}`,
+  );
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    if (signal?.aborted) {
+      console.warn(
+        `[AI] callOpenRouterWithRetry: Signal aborted before attempt ${attempt + 1}`,
+      );
+      throw new DOMException("Aborted", "AbortError");
+    }
 
+    console.debug(
+      `[AI] callOpenRouterWithRetry: Attempt ${attempt + 1}/${MAX_RETRIES}`,
+    );
     let response: Response;
 
     // Compose a per-attempt 90 s timeout with the caller's abort signal so a
     // hanging fetch is never left waiting indefinitely.
     const timeoutCtrl = new AbortController();
-    const timeoutId = setTimeout(
-      () =>
-        timeoutCtrl.abort(
-          new DOMException("Request timed out", "TimeoutError"),
-        ),
-      90_000,
-    );
+    const timeoutId = setTimeout(() => {
+      console.error(
+        `[AI] callOpenRouterWithRetry: Attempt ${attempt + 1} timed out after 90s`,
+      );
+      timeoutCtrl.abort(new DOMException("Request timed out", "TimeoutError"));
+    }, 90_000);
+
     if (signal) {
-      signal.addEventListener("abort", () => timeoutCtrl.abort(signal.reason), {
-        once: true,
-      });
+      signal.addEventListener(
+        "abort",
+        () => {
+          console.debug(
+            `[AI] callOpenRouterWithRetry: Parent signal aborted during attempt ${attempt + 1}`,
+          );
+          timeoutCtrl.abort(signal.reason);
+        },
+        {
+          once: true,
+        },
+      );
     }
 
     try {
@@ -150,14 +189,29 @@ async function callOpenRouterWithRetry(
           ],
           temperature: 0.8,
           max_tokens: 4096,
+          provider: {
+            order: ["DeepSeek"],
+            allow_fallbacks: false,
+          },
         }),
       });
+      console.debug(
+        `[AI] callOpenRouterWithRetry: Attempt ${attempt + 1} received response. Status: ${response.status}`,
+      );
     } catch (networkErr) {
       const err = networkErr as Error;
+      console.error(
+        `[AI] callOpenRouterWithRetry: Attempt ${attempt + 1} network error:`,
+        err,
+      );
       // User explicitly cancelled — propagate immediately
       if (err.name === "AbortError" && signal?.aborted) throw networkErr;
       if (attempt < MAX_RETRIES - 1) {
-        await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+        const waitTime = 2000 * (attempt + 1);
+        console.info(
+          `[AI] callOpenRouterWithRetry: Retrying in ${waitTime}ms...`,
+        );
+        await new Promise((r) => setTimeout(r, waitTime));
         continue;
       }
       throw err.name === "TimeoutError" || err.name === "AbortError"
@@ -173,6 +227,9 @@ async function callOpenRouterWithRetry(
       const wait = retryAfterHeader
         ? parseInt(retryAfterHeader, 10) * 1000
         : 10000;
+      console.warn(
+        `[AI] callOpenRouterWithRetry: Rate limited (429). Waiting ${wait}ms...`,
+      );
       await new Promise((r) => setTimeout(r, Math.max(wait, 5000)));
       continue;
     }
@@ -180,15 +237,26 @@ async function callOpenRouterWithRetry(
     // Permanent failures — no point retrying
     if (response.status === 401 || response.status === 402) {
       const body = await response.json().catch(() => ({}));
-      throw new Error(
-        `OpenRouter ${response.status}: ${(body as { error?: { message?: string } })?.error?.message ?? response.statusText}`,
+      const errMsg =
+        (body as { error?: { message?: string } })?.error?.message ??
+        response.statusText;
+      console.error(
+        `[AI] callOpenRouterWithRetry: Permanent error ${response.status}: ${errMsg}`,
       );
+      throw new Error(`OpenRouter ${response.status}: ${errMsg}`);
     }
 
     // Transient server errors
     if (response.status >= 500) {
+      console.warn(
+        `[AI] callOpenRouterWithRetry: Server error ${response.status}`,
+      );
       if (attempt < MAX_RETRIES - 1) {
-        await new Promise((r) => setTimeout(r, 3000 * (attempt + 1)));
+        const waitTime = 3000 * (attempt + 1);
+        console.info(
+          `[AI] callOpenRouterWithRetry: Retrying in ${waitTime}ms...`,
+        );
+        await new Promise((r) => setTimeout(r, waitTime));
         continue;
       }
       throw new Error(`OpenRouter server error ${response.status}`);
@@ -196,15 +264,47 @@ async function callOpenRouterWithRetry(
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
-      throw new Error(
-        `OpenRouter ${response.status}: ${(body as { error?: { message?: string } })?.error?.message ?? response.statusText}`,
+      const errMsg =
+        (body as { error?: { message?: string } })?.error?.message ??
+        response.statusText;
+      console.error(
+        `[AI] callOpenRouterWithRetry: HTTP error ${response.status}: ${errMsg}`,
       );
+      throw new Error(`OpenRouter ${response.status}: ${errMsg}`);
     }
 
-    const data = (await response.json()) as {
-      choices: { message: { content: string } }[];
-    };
-    return data.choices[0].message.content;
+    console.debug(
+      `[AI] callOpenRouterWithRetry: Attempt ${attempt + 1} succeeded. Reading response body...`,
+    );
+    const rawData = await response.text();
+    console.debug(
+      `[AI] callOpenRouterWithRetry: Attempt ${attempt + 1} read ${rawData.length} bytes. Parsing JSON...`,
+    );
+
+    let data: any;
+    try {
+      data = JSON.parse(rawData);
+    } catch (e) {
+      console.error(
+        "[AI] callOpenRouterWithRetry: Failed to parse OpenRouter envelope JSON:",
+        e,
+      );
+      throw new Error("Invalid JSON envelope from OpenRouter");
+    }
+
+    const content = data.choices?.[0]?.message?.content;
+    if (typeof content !== "string") {
+      console.error(
+        "[AI] callOpenRouterWithRetry: Unexpected response structure (no content):",
+        data,
+      );
+      throw new Error("OpenRouter returned an empty or malformed message");
+    }
+
+    console.debug(
+      `[AI] callOpenRouterWithRetry: Successfully retrieved content (${content.length} chars).`,
+    );
+    return content;
   }
   throw new Error("Max retries exceeded");
 }
@@ -242,51 +342,89 @@ export async function populateAIData(
     batches.push(adults.slice(i, i + BATCH_SIZE));
   }
 
-  for (let b = 0; b < batches.length; b++) {
-    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+  let batchesDone = 0;
+  const queue = [...batches.entries()];
 
-    onProgress(
-      b,
-      batches.length,
-      `Batch ${b + 1} / ${batches.length} — requesting…`,
-    );
+  const worker = async () => {
+    while (queue.length > 0) {
+      if (signal?.aborted) break;
+      const entry = queue.shift();
+      if (!entry) break;
+      const [bIndex, batch] = entry;
 
-    const prompt = buildBatchPrompt(batches[b], getPersonName, supernaturalIds);
-    const raw = await callOpenRouterWithRetry(prompt, apiKey, signal);
+      console.info(
+        `[AI] populateAIData: Starting batch ${bIndex + 1}/${batches.length}`,
+      );
+      const prompt = buildBatchPrompt(batch, getPersonName, supernaturalIds);
 
-    let parsed: { p?: unknown[]; r?: unknown[] };
-    try {
-      parsed = parseAIResponse(raw);
-    } catch (e) {
-      console.warn(`Batch ${b + 1} parse failed — skipping`, e);
-      continue;
-    }
+      try {
+        const raw = await callOpenRouterWithRetry(prompt, apiKey, signal);
+        console.debug(
+          `[AI] populateAIData: Batch ${bIndex + 1} response received (${raw.length} bytes)`,
+        );
 
-    for (const item of parsed.p ?? []) {
-      const it = item as { i?: number; t?: string; s?: string };
-      if (
-        typeof it.i === "number" &&
-        typeof it.t === "string" &&
-        typeof it.s === "string"
-      ) {
-        result.people.set(it.i, {
-          traits: it.t.trim(),
-          secret: it.s.trim(),
-        });
+        let parsed: { p?: unknown[]; r?: unknown[] };
+        try {
+          parsed = parseAIResponse(raw);
+        } catch (e) {
+          console.error(
+            `[AI] populateAIData: Batch ${bIndex + 1} parse failed:`,
+            e,
+          );
+          continue;
+        }
+
+        for (const item of parsed.p ?? []) {
+          const it = item as { i?: number; t?: string; s?: string };
+          if (
+            typeof it.i === "number" &&
+            typeof it.t === "string" &&
+            typeof it.s === "string"
+          ) {
+            result.people.set(it.i, {
+              traits: it.t.trim(),
+              secret: it.s.trim(),
+            });
+          }
+        }
+
+        for (const item of parsed.r ?? []) {
+          const it = item as { a?: number; b?: number; w?: string };
+          if (
+            typeof it.a === "number" &&
+            typeof it.b === "number" &&
+            typeof it.w === "string"
+          ) {
+            result.rels.set(relKey(it.a, it.b), it.w.trim());
+          }
+        }
+
+        batchesDone++;
+        onProgress(
+          batchesDone,
+          batches.length,
+          `Batch ${batchesDone} / ${batches.length} done...`,
+        );
+      } catch (err) {
+        console.error(
+          `[AI] populateAIData: Batch ${bIndex + 1} critical failure:`,
+          err,
+        );
+        throw err; // Propagate to main catch block
       }
     }
+  };
 
-    for (const item of parsed.r ?? []) {
-      const it = item as { a?: number; b?: number; w?: string };
-      if (
-        typeof it.a === "number" &&
-        typeof it.b === "number" &&
-        typeof it.w === "string"
-      ) {
-        result.rels.set(relKey(it.a, it.b), it.w.trim());
-      }
-    }
-  }
+  // Launch parallel workers
+  const numWorkers = Math.min(CONCURRENCY_LIMIT, batches.length);
+  console.info(
+    `[AI] populateAIData: Launching ${numWorkers} parallel workers.`,
+  );
+  await Promise.all(
+    Array(numWorkers)
+      .fill(null)
+      .map(() => worker()),
+  );
 
   onProgress(batches.length, batches.length, "Complete");
   return result;

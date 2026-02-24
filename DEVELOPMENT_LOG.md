@@ -1,3 +1,21 @@
+## 2026-02-24 - Pin OpenRouter to native DeepSeek provider
+
+**Root cause:** OpenRouter's automatic routing sometimes selects third-party
+providers (like Chutes or DeepInfra) which can have inconsistent throughput,
+higher latency, or different quantization.
+
+### Changed files
+
+- `src/ai.ts`:
+  - Added `provider` configuration to the OpenRouter fetch body.
+  - Set `order: ["DeepSeek"]` and `allow_fallbacks: false` to force the use of
+    DeepSeek's native inference.
+
+### Verification
+
+- Project built successfully.
+- Server restarted and confirmed responsive on `localhost:9091`.
+
 ## 2026-02-24 - Fix AI response truncation and refine batch size
 
 **Root cause:** Large NPC batches (100+) combined with relationship data were
