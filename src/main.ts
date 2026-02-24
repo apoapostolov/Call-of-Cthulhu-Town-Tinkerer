@@ -179,8 +179,11 @@ function makeAvatarHtml(person: Person, _size = 48, isLarge = false): string {
   if (!url) {
     return `<div class="${placeholderCls}">${emoji}</div>`;
   }
-  const fallback = `<div class='${placeholderCls}'>${emoji}</div>`;
-  return `<img src="${url}" class="${cls}" alt="" loading="lazy" onerror="this.outerHTML='${fallback.replace(/'/g, "&apos;")}'">`;
+  const fallback = `<div class="${placeholderCls}">${emoji}</div>`;
+  // No crossorigin attribute — lets the browser send cookies (needed for
+  // Google-account-gated Drive files) and avoids CORS-mode failures in the
+  // browser when the cached image was stored without CORS headers.
+  return `<img src="${url}" class="${cls}" alt="" loading="lazy" onerror="this.outerHTML='${fallback.replace(/"/g, "&quot;")}'">`;
 }
 
 function formatStatsForFoundry(person: Person, stats: Stats): string {
@@ -266,8 +269,8 @@ function renderCategories() {
 
       const displayName = job.name;
       const displayThreshold = formatNumber(job.threshold);
-      jobsHtml += `<div class="job ${active && count > 0 ? "" : "inactive"}" data-job="${job.name}">
-        <span class="job-name"><span>${job.icon}</span><span>${displayName}</span><span class="threshold">(${displayThreshold}+)</span></span>
+      jobsHtml += `<div class="job ${active && count > 0 ? "" : "inactive"}" data-job="${job.name}" title="${job.name} — found in settlements of ${displayThreshold}+ people">
+        <span class="job-name"><span>${job.icon}</span><span>${displayName}</span></span>
         <span class="job-count">${formatNumber(count)}</span>
       </div>`;
     }
@@ -344,8 +347,7 @@ function renderJobList() {
     peopleHtml += `<div class="person-card ${p.gender}${p.isGay ? " gay" : ""}" data-person-id="${p.id}">
       ${makeAvatarHtml(p, 48, false)}
       <div class="person-info">
-        <div class="person-name">${name}${gayBadge}</div>
-        <div class="person-age">${p.age} y.o.</div>
+        <div class="person-name">${name}${gayBadge}<span class="person-age">, ${p.age} y.o.</span></div>
         ${aiPersonData ? `<div class="person-traits">${aiPersonData.traits}</div>` : ""}
         ${relations.length > 0 ? `<div class="person-relations">${relations.join(" • ")}</div>` : ""}
       </div>
@@ -418,9 +420,11 @@ function showPersonDetail(personId: number) {
     const foundryText = formatStatsForFoundry(person, stats);
     statsHtml = `
       <div class="family-section">
-        <h4>📊 Cthulhu Sheet</h4>
+        <div class="sheet-header">
+          <h4>📊 Cthulhu Sheet</h4>
+          <button class="copy-btn" id="copyBtn">📋 Copy for Foundry VTT</button>
+        </div>
         <div class="stats-sheet" id="statsSheet">${foundryText}</div>
-        <button class="copy-btn" id="copyBtn">📋 Copy for Foundry VTT</button>
       </div>
     `;
   }
@@ -508,10 +512,21 @@ function showPersonDetail(personId: number) {
       <div class="person-detail-header">
         ${makeAvatarHtml(person, 100, true)}
         <div class="info">
-          <strong>Age:</strong> ${person.age} y.o.<br>
-          <strong>Job:</strong> ${jobIcon} ${person.job || "None"}<br>
-          <strong>Family:</strong> ${cthulhuData.lastNames[person.lastNameIdx]}<br>
-          <strong>Gender:</strong> ${genderLabel}${person.isGay ? " 🏳️‍🌈" : ""}
+          <div class="info-primary">
+            <strong>Age:</strong> ${person.age} y.o.<br>
+            <strong>Job:</strong> ${jobIcon} ${person.job || "None"}<br>
+            <strong>Family:</strong> ${cthulhuData.lastNames[person.lastNameIdx]}<br>
+            <strong>Gender:</strong> ${genderLabel}${person.isGay ? " 🏳️\u200d🌈" : ""}
+          </div>
+          ${(() => {
+            const ai = aiData.get(person.id);
+            if (!ai) return "";
+            const extras =
+              ai.extraSecrets
+                ?.map((s) => `<span class="ai-inline-secret">🔒 ${s}</span>`)
+                .join("") ?? "";
+            return `<div class="info-secondary"><span class="ai-inline-traits">${ai.traits}</span><span class="ai-inline-secret">🔒 ${ai.secret}</span>${extras}</div>`;
+          })()}
         </div>
       </div>
       ${(() => {

@@ -1,3 +1,118 @@
+## 2026-02-24 - Portrait fix, emoji centering, cache post-processing
+
+### Problem
+Portraits regressed to emoji fallback after the previous session added
+`crossorigin="anonymous"` to the `<img>` tag.  Root cause: the attribute
+switches the browser from no-cors to cors fetch mode, sending an `Origin`
+header.  Combined with `cache-control: private` + `vary: Origin` on
+`lh3.googleusercontent.com`, browsers could fail CORS validation against a
+previously cached non-CORS response, triggering the fallback path.  Without the
+attribute, the browser sends cookies (needed when files are shared only with a
+specific Google account) and no CORS validation is required for image display.
+
+The emoji fallback circle was also visually misaligned because the emoji has
+unusual vertical metrics; adding `line-height: 1` to both placeholder classes
+forces correct centering.
+
+### Changed files
+
+- **`src/main.ts`**
+  - `makeAvatarHtml()`: removed `crossorigin="anonymous"` — lets the browser
+    send cookies and avoids CORS-mode failures for Google Drive images.
+
+- **`src/style.css`**
+  - `.person-avatar-placeholder` and `.person-avatar-placeholder-large`: added
+    `line-height: 1` to centre the emoji glyph vertically inside the circle/box.
+
+### Cache post-processing
+
+- **`PROCESSING_INSTRUCTIONS.md`** *(new)*: documents the post-processing
+  workflow for AI agents tasked with curating `public/prebuilt_cache.json`
+  after new batches are generated — covers normalSecrets era correction and
+  supernaturalSecrets quality curation.
+
+- **`scripts/process_cache.py`** *(new)*: reference implementation of the
+  post-processing.  Normalises case, deduplicates, removes weak/anachronistic
+  entries, fills gaps with 243 hand-picked 1920s–1930s period secrets, and
+  replaces the 158-entry redundant supernatural pool with 36 curated,
+  distinctly-flavoured entries (covering Jazz-age haunting, Great-War ghosts,
+  Egyptian curses, Lovecraftian deals, and period-specific objects like a
+  cursed phonograph and a ghost-bound pocketwatch).
+
+- **`public/prebuilt_cache.json`**:
+  - `normalSecrets`: 233 case-duplicates removed; 10 weak/anachronistic entries
+    removed; 243 replacements added → maintained at 1 000 unique entries.
+  - `supernaturalSecrets`: reduced from 158 heavily-clustered entries to 36
+    high-quality, distinct entries; `[!]` artefacts stripped; proper nouns
+    correctly preserved.
+
+---
+
+## 2026-02-24 - Cache status color, comma normalization, multi-secret rules
+
+### Changed files
+
+- **`src/style.css`**
+  - `.ai-cache-status.fulfilled`: changed color from bright `#4ade80` to muted cool grey `#a0aec0`, consistent with the dark purple theme and secondary hint text style.
+
+- **`src/ai.ts`**
+  - `AIPersonData` interface: added `extraSecrets?: string[]` for additional secrets assigned post-AI by `fillFromCache`.
+  - Trait comma normalization: `.replace(/,\s*/g, ", ")` applied to every trait string coming out of the AI response, ensuring consistent spacing like `"brave, reckless, greedy"` regardless of what the model outputs.
+  - `populateAIData()` supernatural selection: only adults aged 18+ are now eligible for supernatural secrets; teens (13–17) who are not "Child" job always receive a plain normal secret.
+
+- **`src/cache.ts`**
+  - `mergeCache()`: trait entries from prebuilt cache are now normalized for comma spacing on ingestion.
+  - `appendToCache()`: same normalization applied when appending live AI results.
+  - `fillFromCache()` supernatural selection: mirrored the age≥18 filter from `ai.ts`; uses `supEligible` instead of full `adults` array for the 1% supernatural draw.
+  - `fillFromCache()` multi-secret assignment: after primary assignment, a second pass over sorted adults with a new seeded RNG (`seed ^ 0xef7a1b23`) applies:
+    - Teens (< 18): no extra secrets.
+    - Supernatural adults: 1% chance of gaining one extra normal secret.
+    - Normal adults: 10% chance of a 2nd secret; 33% of those also gain a 3rd secret.
+    - Extra secrets are drawn from the tail of the `normalSecretIndices` array (positions unused by primary assignment), so no entries are shared. If the pool is exhausted the extra is silently skipped (graceful degradation).
+
+- **`src/main.ts`**
+  - `showPersonDetail()` info-secondary block: renders `ai.extraSecrets` when present, appending each as an additional `🔒` line in the right column of the portrait info area.
+
+---
+
+## 2026-02-24 - Person modal: button theme, two-column info, copy btn placement
+
+### Changed files
+
+- **`src/style.css`**
+  - `.seed-control button` / `.seed-control button:hover`: replaced bright blue (`#3498db`) with muted purple (`rgba(99,102,241,0.35/0.55)`) with a `1px solid rgba(99,102,241,0.5)` border — keeps Regenerate and Random Seed visually consistent with the purple AI buttons.
+  - `.copy-btn` / `.copy-btn:hover` / `.copy-btn.copied`: replaced green (`#27ae60`) with the same muted purple scheme; `copied` state uses a muted green tint for subtle success feedback; removed `margin-top` (button is now inline at row level); reduced padding slightly to fit next to the heading.
+  - `.person-detail .info`: changed to `display: flex; gap: 1.5rem; align-items: flex-start; flex: 1` to host side-by-side columns.
+  - Added `.info-primary` (fixed-width left column: Age/Job/Family/Gender) and `.info-secondary` (flex right column with left border divider for Traits + Secret).
+  - Added `.sheet-header` flex rule (`justify-content: space-between; align-items: center`) to place the Copy button inline right-aligned with the "📊 Cthulhu Sheet" heading.
+  - Added `.sheet-header h4 { margin: 0 }` to prevent extra spacing inside the row.
+
+- **`src/main.ts`**
+  - `showPersonDetail()` `.info` block: restructured into `<div class="info-primary">` (core fields) + conditional `<div class="info-secondary">` (ai traits/secret) so they render as two left-aligned columns when AI data is present.
+  - `statsHtml` template: wrapped `<h4>` and `<button class="copy-btn">` inside `<div class="sheet-header">` and moved the button before the stats text block so it appears right-aligned on the same line as the heading.
+
+---
+
+## 2026-02-24 - UI polish batch: profession cards, modals, cache status
+
+### Changed files
+
+- **`src/style.css`**
+  - `.pop-input`: changed `text-align` from `right` to `center` so the population number is visually centered in the input field.
+  - `.ai-cache-status`: replaced `flex-basis: 100%; padding-top: 0.4rem` with `align-self: center; margin-left: 0.5rem` so the cache status sits inline after the AI Settings button rather than wrapping to a new line.
+  - `.job-name`: added `flex: 1; min-width: 0; overflow: hidden` and a new child rule `.job-name > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }` so long profession names never wrap to a second line.
+  - Removed `.threshold` rule entirely — the `(X+)` label is no longer rendered in HTML.
+  - `.person-traits`: changed color from `#a78bfa` to `#aaa` to match `.person-relations` and `.person-connections`.
+  - `.ai-character-section`: added `display: none` to hide the ✨ Character Notes frame (preserved in DOM for future reuse).
+  - Added `.ai-inline-traits` and `.ai-inline-secret` utility classes (grey, italic for traits) for the new inline portrait-column display.
+
+- **`src/main.ts`**
+  - `renderCategories()`: removed `<span class="threshold">(X+)</span>` from each job card; added `title="${job.name} — found in settlements of ${displayThreshold}+ people"` tooltip attribute on the `.job` div so threshold info is accessible on hover.
+  - `renderJobList()`: merged age into the name line as `name, N y.o.` (inline `<span class="person-age">`) instead of a separate block div.
+  - `showPersonDetail()`: character traits and secret are now rendered inside the `.info` column next to the portrait using `.ai-inline-traits` / `.ai-inline-secret` classes in grey italic; the original `.ai-character-section` block remains in DOM but is hidden by CSS.
+
+---
+
 ## 2026-02-24 - Translate job skill profiles to English
 
 **Root cause:** Several jobs in the embedded data still used French skill

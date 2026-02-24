@@ -67,7 +67,7 @@ input[type="range"]::-webkit-slider-thumb {
   width: 180px;
   font-size: 1.5rem;
   font-weight: bold;
-  text-align: right;
+  text-align: center;
 }
 .categories {
   display: grid;
@@ -102,6 +102,14 @@ input[type="range"]::-webkit-slider-thumb {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.job-name > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .job-count {
   font-weight: bold;
@@ -133,11 +141,6 @@ input[type="range"]::-webkit-slider-thumb {
 .summary-item .label {
   font-size: 0.85rem;
   color: #888;
-}
-.threshold {
-  font-size: 0.7rem;
-  color: #666;
-  margin-left: 0.3rem;
 }
 .modal-overlay {
   display: none;
@@ -243,6 +246,7 @@ input[type="range"]::-webkit-slider-thumb {
   align-items: center;
   justify-content: center;
   font-size: 1.5rem;
+  line-height: 1;
   flex-shrink: 0;
 }
 .person-avatar-placeholder-large {
@@ -254,6 +258,7 @@ input[type="range"]::-webkit-slider-thumb {
   align-items: center;
   justify-content: center;
   font-size: 3rem;
+  line-height: 1;
   border: 2px solid rgba(255, 255, 255, 0.2);
 }
 .person-info {
@@ -288,6 +293,21 @@ input[type="range"]::-webkit-slider-thumb {
 .person-detail .info {
   color: #888;
   margin-bottom: 1rem;
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+  flex: 1;
+  min-width: 0;
+}
+.info-primary {
+  min-width: 0;
+  flex-shrink: 0;
+}
+.info-secondary {
+  flex: 1;
+  min-width: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  padding-left: 1.2rem;
 }
 .family-section {
   margin-top: 1rem;
@@ -297,6 +317,15 @@ input[type="range"]::-webkit-slider-thumb {
 .family-section h4 {
   color: #f39c12;
   margin-bottom: 0.8rem;
+}
+.sheet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.8rem;
+}
+.sheet-header h4 {
+  margin: 0;
 }
 .family-members {
   display: flex;
@@ -346,15 +375,15 @@ input[type="range"]::-webkit-slider-thumb {
   width: 150px;
 }
 .seed-control button {
-  background: #3498db;
-  border: none;
+  background: rgba(99, 102, 241, 0.35);
+  border: 1px solid rgba(99, 102, 241, 0.5);
   color: #fff;
   padding: 0.5rem 1rem;
   border-radius: 6px;
   cursor: pointer;
 }
 .seed-control button:hover {
-  background: #2980b9;
+  background: rgba(99, 102, 241, 0.55);
 }
 .pagination {
   display: flex;
@@ -419,19 +448,21 @@ input[type="range"]::-webkit-slider-thumb {
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 .copy-btn {
-  background: #27ae60;
-  border: none;
+  background: rgba(99, 102, 241, 0.35);
+  border: 1px solid rgba(99, 102, 241, 0.5);
   color: #fff;
-  padding: 0.5rem 1rem;
+  padding: 0.4rem 0.9rem;
   border-radius: 6px;
   cursor: pointer;
-  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
 }
 .copy-btn:hover {
-  background: #2ecc71;
+  background: rgba(99, 102, 241, 0.55);
 }
 .copy-btn.copied {
-  background: #3498db;
+  background: rgba(74, 222, 128, 0.25);
+  border-color: rgba(74, 222, 128, 0.5);
 }
 .badge-gay {
   background: linear-gradient(90deg, #e91e63, #9c27b0, #3f51b5);
@@ -587,12 +618,13 @@ input[type="range"]::-webkit-slider-thumb {
 
 .person-traits {
   font-size: 0.78rem;
-  color: #a78bfa;
+  color: #aaa;
   font-style: italic;
   margin-top: 0.3rem;
   line-height: 1.4;
 }
 .ai-character-section {
+  display: none;
   margin-top: 1rem;
   padding: 1rem;
   background: rgba(99, 102, 241, 0.08);
@@ -631,10 +663,25 @@ input[type="range"]::-webkit-slider-thumb {
 .ai-cache-status {
   font-size: 0.75rem;
   color: #888;
-  flex-basis: 100%;
-  padding-top: 0.4rem;
+  align-self: center;
+  margin-left: 0.5rem;
   letter-spacing: 0.01em;
 }
 .ai-cache-status.fulfilled {
-  color: #4ade80;
+  color: #a0aec0;
+}
+.ai-inline-traits {
+  color: #888;
+  font-size: 0.9rem;
+  font-style: italic;
+  line-height: 1.5;
+  display: block;
+  margin-top: 0.6rem;
+}
+.ai-inline-secret {
+  color: #888;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  display: block;
+  margin-top: 0.3rem;
 }
