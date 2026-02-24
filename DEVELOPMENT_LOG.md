@@ -25,7 +25,6 @@ and apply it during stat generation.
 - Rebuilt and ran the web app; manual population samples now export clean,
   English-only sheets that match the format example.
 
-
 ## 2026-02-24 - Strict Foundry export format
 
 - Reworked `formatStatsForFoundry` output to exactly match the sheet layout
