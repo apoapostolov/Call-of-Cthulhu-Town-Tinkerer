@@ -15,8 +15,10 @@ dist-ssr
 .env.*
 !.env.example
 
+# Ignore VSCode settings folder
+.vscode/
+
 # Editor directories and files
-.vscode/*
 !.vscode/extensions.json
 .idea
 .DS_Store
