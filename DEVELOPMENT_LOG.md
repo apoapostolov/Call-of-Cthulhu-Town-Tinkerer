@@ -1,3 +1,25 @@
+## 2026-02-24 - Fix AI response truncation and refine batch size
+
+**Root cause:** Large NPC batches (100+) combined with relationship data were
+exceeding the ~4096 output token limit of the OpenRouter models (specifically
+DeepSeek-v3.2), causing the JSON to be cut off mid-object.
+
+### Changed files
+
+- `src/ai.ts`:
+  - Reduced `BATCH_SIZE` from 100 down to 50 to ensure the full JSON payload
+    (people + relationships) fits comfortably within model output limits.
+  - Updated `SYSTEM_PROMPT` to further limit secret length (≤6 words) and
+    explicitly warn about truncation.
+  - Enhanced `parseAIResponse` diagnostic logging to explicitly flag
+    truncated responses (content not ending in `}`).
+  - Added specific error message for truncation to guide users/developers.
+
+### Verification
+
+- Project built successfully.
+- Server restarted and confirmed responsive on `localhost:9091`.
+
 ## 2026-02-24 - Update AGENTS.md with Build and Restart Protocol
 
 Added a mandatory protocol for agents to build and restart the development
