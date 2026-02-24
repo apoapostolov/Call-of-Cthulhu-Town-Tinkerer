@@ -42,6 +42,7 @@ The application uses a dark, atmospheric theme suitable for a Call of Cthulhu se
 - **Families**: Groups people into families (parents, children) with realistic age gaps and a small chance of same-sex couples.
 - **Jobs**: Assigns jobs based on population thresholds and ratios. Uses gender ratios specific to each job (e.g., 1920s historical context).
 - **Stats**: Generates STR, CON, SIZ, DEX, APP, INT, POW, EDU, SAN, HP, MP, Luck, Damage Bonus, Build, Move, and Skills based on the assigned job's profile.
+  When exporting an individual’s sheet the tool now produces a strict text format (with a Combat section and comma‑separated skill list) that Foundry VTT can ingest verbatim. Examples are documented in the UI.
 
 ## Refactoring Plan (TS/Vite)
 

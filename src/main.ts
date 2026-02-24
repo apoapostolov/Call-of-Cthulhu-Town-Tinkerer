@@ -1,7 +1,7 @@
-import type { AIPersonData } from "./ai";
-import { MAX_ADULTS, populateAIData, relKey } from "./ai";
-import { appendToCache, fillFromCache, getCacheStats } from "./cache";
-import { cthulhuData } from "./data";
+import type { AIPersonData } from "./ai.ts";
+import { MAX_ADULTS, populateAIData, relKey } from "./ai.ts";
+import { appendToCache, fillFromCache, getCacheStats } from "./cache.ts";
+import { cthulhuData } from "./data.ts";
 import type { Person, Stats } from "./logic";
 import { generateCthulhuStats, generatePopulation, mulberry32 } from "./logic";
 import { GDRIVE_PHOTOS, gdUrl } from "./photos";
@@ -173,27 +173,66 @@ function makeAvatarHtml(person: Person, _size = 48, isLarge = false): string {
 }
 
 function formatStatsForFoundry(person: Person, stats: Stats): string {
-  let text = `Name: ${getPersonName(person)}\n`;
-  text += `Age: ${person.age} | Job: ${person.job || "None"}\n`;
-  text += `STR: ${stats.STR} | CON: ${stats.CON} | SIZ: ${stats.SIZ} | DEX: ${stats.DEX} | APP: ${stats.APP}\n`;
-  text += `INT: ${stats.INT} | POW: ${stats.POW} | EDU: ${stats.EDU} | SAN: ${stats.SAN}\n`;
-  text += `HP: ${stats.HP} | MP: ${stats.MP} | Luck: ${stats.Luck}\n`;
-  text += `DB: ${stats.DB} | Build: ${stats.Build} | MOV: ${stats.MOV} | Dodge: ${stats.Dodge}\n\n`;
+  // Strict sheet format required by Foundry VTT import.
+  const name = getPersonName(person);
+  let text = `${name}, age ${person.age}\n`;
 
-  if (Object.keys(stats.Skills).length > 0) {
-    text += `Skills:\n`;
-    for (const [skill, val] of Object.entries(stats.Skills)) {
-      text += `- ${skill}: ${val}%\n`;
+  // primary stats on two lines
+  text += `STR ${stats.STR} CON ${stats.CON} SIZ ${stats.SIZ} DEX ${stats.DEX} APP ${stats.APP} INT ${stats.INT}\n`;
+  text += `POW ${stats.POW} EDU ${stats.EDU} SAN ${stats.SAN} HP ${stats.HP} DB: ${
+    stats.DB || "Aucun"
+  }\n`;
+  text += `Build: ${stats.Build} Move: ${stats.MOV} MP: ${stats.MP} Luck: ${stats.Luck}\n\n`;
+
+  // combat section: attacks and dodge values with half/quarter breakdown
+  text += `Combat\n`;
+  for (const attack of stats.Attacks) {
+    // attack strings come like "Fist (1D3+1)" or "Club (1D6)" etc
+    const m = attack.match(/^(.*?) \((.*)\)$/);
+    let skillName = attack;
+    let damageInfo = "";
+    if (m) {
+      skillName = m[1];
+      damageInfo = m[2];
+    }
+    const skillVal = stats.Skills[skillName] || 0;
+    const half = Math.floor(skillVal / 2);
+    const quarter = Math.floor(skillVal / 4);
+    text += `${skillName} ${skillVal}% (${half}/${quarter})`;
+    if (damageInfo) {
+      text += `, damage ${damageInfo}`;
     }
     text += `\n`;
   }
+  const dodge = stats.Dodge;
+  const dodgeHalf = Math.floor(dodge / 2);
+  const dodgeQuarter = Math.floor(dodge / 4);
+  text += `Dodge ${dodge}% (${dodgeHalf}/${dodgeQuarter})\n\n`;
 
-  if (stats.Attacks.length > 0) {
-    text += `Attacks:\n`;
-    for (const attack of stats.Attacks) {
-      text += `- ${attack}\n`;
-    }
+  // skills section separates languages from others
+  const entries = Object.entries(stats.Skills);
+  const langEntries = entries.filter(
+    ([n]) => /language/i.test(n) || n === "Own Language",
+  );
+  const otherEntries = entries.filter(
+    ([n]) => !( /language/i.test(n) || n === "Own Language" ),
+  );
+  if (otherEntries.length > 0) {
+    // alphabetical for consistent ordering
+    otherEntries.sort((a, b) => a[0].localeCompare(b[0]));
+    text += `Skills\n`;
+    text += otherEntries
+      .map(([n, v]) => `${n} ${v}%`)
+      .join(`, `);
+    text += `\n`;
   }
+  if (langEntries.length > 0) {
+    langEntries.sort((a, b) => a[0].localeCompare(b[0]));
+    text += `Languages: `;
+    text += langEntries.map(([n, v]) => `${n} ${v}%`).join(`, `);
+    text += `.`;
+  }
+
   return text;
 }
 

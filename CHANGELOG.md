@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Exported character text now follows the exact layout used by the keeper's
+  example (name/age line, stat rows, Combat section, skills comma-separated,
+  standalone Languages line). Removes extra prefixes so the output can be
+  pasted directly into Foundry VTT.
+
 ### Added
 
 - **Parallel AI Batch Processing**: Character data is now generated using a parallel worker pool (concurrency: 3). This significantly reduces total generation time by processing multiple batches simultaneously.

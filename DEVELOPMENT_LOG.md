@@ -1,3 +1,13 @@
+## 2026-02-24 - Strict Foundry export format
+
+- Reworked `formatStatsForFoundry` output to exactly match the sheet layout
+  used by the keeper's example, with name/age line, stat rows, explicit
+  Combat section, dodge breakdown, and comma-separated skill list plus
+  separate Languages line. Dropped the previous "Name:" and "Job:" prefixes
+  so the text can be imported directly into Foundry VTT without manual
+  editing.
+- Added documentation note about the new export format.
+
 ## 2026-02-24 - Pin OpenRouter to native DeepSeek provider
 
 **Root cause:** OpenRouter's automatic routing sometimes selects third-party
