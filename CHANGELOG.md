@@ -2,73 +2,41 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+# Changelog
 
-### Added
-
-- Cult name word lists now auto‑expand at runtime to roughly five times their
-  original length using simple prefix/suffix heuristics, dramatically
-  increasing name variety.
-- The pool of cult motivations (`CULT_FLAVOURS`) has grown from 20 to 100
-  entries, introducing dozens of odd, engaging, and unexpected goals
-  (jazz‑musician sacrifices, mirror‑rites, phantom trains, etc.).
-- Cult secrets and extras are now prefixed with the ⚗ emoji instead of the
-  literal string `[Cult]`.
-- When a new cult is created a baseline cult secret is assigned to any member
-  who previously lacked AI data; this guarantees the secret field is never
-  empty.
-
-### Changed
-
-- Exported character text now follows the exact layout used by the keeper's
-  example (name/age line, stat rows, Combat section, skills comma-separated,
-  standalone Languages line). Removes extra prefixes so the output can be
-  pasted directly into Foundry VTT.
-
-### Fixed
-
-- Bug where cult members could display an empty secret was fixed; empty
-  secret lines are now suppressed in the UI to avoid blank 🔒 entries.
-- Minor wording update following the cult-secret emoji change.
-
-### Added
-
-- **Parallel AI Batch Processing**: Character data is now generated using a parallel worker pool (concurrency: 3). This significantly reduces total generation time by processing multiple batches simultaneously.
-- **Smart AI Caching**: Persistent `localStorage` pooling for traits and secrets. Once the cache contains enough unique entries for the current population size, the generator automatically "auto-fills" NPC details without requiring an API call.
-- **AI Data Population**: Fully integrated OpenRouter support (`deepseek-v3.2`) to generate 1920s-appropriate character traits, dark secrets, and relationship nuances for every adult NPC.
-- **Prebuilt cache merging**: On startup the app now fetches `prebuilt_cache.json` (moved into `public/`) and merges it into the localStorage cache, guaranteeing that every generated town can be populated with traits and secrets—including a 1 % chance of a supernatural secret—without any API interaction.
-- **Real Photo Integration**: Deterministic matching of NPCs to a pool of 700+ period-appropriate portraits using a seeded Fisher-Yates shuffle.
-
-### Changed
-
-- **Robust AI JSON Parsing**: Implemented a `clean()` utility that repairs common LLM syntax errors (like trailing commas) before parsing, significantly reducing batch failures.
-- **Reliable AI Networking**:
-  - Added 90-second per-request timeouts using `AbortController` to prevent silent hangs.
-  - Reduced batch size from 100 to 50 individuals to ensure responses stay within model token limits and avoid truncation errors.
-  - Pinned DeepSeek model requests to the native "DeepSeek" provider on OpenRouter to improve consistency and reduce routing latency.
-  - Switched the default AI model to `x-ai/grok-4-fast:free` for much lower latency and removed manual provider restrictions to let OpenRouter auto‑route.
-- Added a `scripts/generate_cache.ts` utility and accompanying `prebuilt_cache.json` file. Running the script with an OpenRouter key will pre-generate a million traits/secrets; the web app imports this JSON on first load to avoid any AI calls.
-- **API Key Security**:
-  - API keys are no longer pre-filled in the settings DOM.
-  - Added a "🗑️ Remove Key" feature to clear local storage.
-  - Passwords fields now use correct ARIA attributes and hidden username fields to satisfy browser accessibility requirements.
-- **Improved Observability**: Added granular console tracing for all AI and application state changes to simplify remote debugging.
-
-### Fixed
-
-- Translated French skill names found in job profiles to English automatically;
-  exported character sheets now strictly contain English skill names, resolving
-  formatting issues during Foundry VTT import.
-- Fixed a silent stalling issue where hanging network requests would block the AI generation progress indefinitely.
-- Corrected various TypeScript type errors following the port from vanilla JavaScript.
-- Standardized file structure and moved all build artifacts out of the source tree.
+All notable changes to this project will be documented in this file.
 
 ## [1.0.0] - 2026-02-24
 
 ### Added
 
-- Initial codebase ported from original JavaScript town generator. Includes full population, job, and stats logic with English-only data.
-- UI recreated with dark glassmorphism theme and responsive layout, strictly matching the original project's design.
-- Development documentation (`AGENTS.md`, `DEVELOPMENT_LOG.md`) and professional README added.
-- Vite/TypeScript build system with npm scripts for development and production.
-- Added license and repository metadata.
+- **Full procedural town generator**: populate, jobs, stats, and relationships in a
+  1920s Call of Cthulhu setting, all deterministic from a seed.
+- **AI‑driven character enrichment**: optional OpenRouter integration to generate
+  period‑appropriate traits, secrets, and relationship tones for every adult
+  NPC; includes a smart local cache and a prebuilt JSON file so the feature
+  works offline.
+- **Real photos**: assign each NPC a realistic 1920s portrait from a 700+ image
+  archive using a seeded shuffle.
+- **Secret cult system**: create rare occult cults with procedurally generated
+  names, hierarchies, contacts, and flavour text. Cult membership grants
+  extra secrets and is reflected on the front page and in the character
+  modal. Cult-related word lists auto‑expand at runtime and motivations now
+  number 100 unique, engaging entries.
+- **Dynamic page title**: the main heading changes from Hamlet → Village → Town
+  → City → … as population increases.
+- **Accessibility & UX polish**: gender glyphs for people, secret fallbacks when
+  cache is empty, pentagram icons for cults, movable UI elements (cult button
+  before AI Data), and many small touchups.
+
+### Changed
+
+- Export format for characters matches the keeper's example exactly, easing
+  import into tools like Foundry VTT.
+- Numerous under‑the‑hood improvements to AI networking, parsing, and caching
+  for reliability and performance.
+- Added comprehensive console logging for easier debugging.
+
+*(Fixes and other minor technical adjustments were performed during
+development but are not included in this release note.)*
+
