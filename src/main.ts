@@ -1,6 +1,11 @@
 import type { AIPersonData } from "./ai.ts";
 import { MAX_ADULTS, populateAIData, relKey } from "./ai.ts";
-import { appendToCache, fillFromCache, getCacheStats } from "./cache.ts";
+import {
+  appendToCache,
+  fillFromCache,
+  getCacheStats,
+  mergeCache,
+} from "./cache.ts";
 import { cthulhuData } from "./data.ts";
 import type { Person, Stats } from "./logic";
 import {

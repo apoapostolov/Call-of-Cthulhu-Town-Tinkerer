@@ -78,9 +78,9 @@ dependencies (`ts-node`, `typescript`).
 ## 2026-02-24 - Merge prebuilt cache on startup
 
 The prebuilt cache JSON is now shipped in `public/` and gets fetched every
-session.  Instead of only seeding localStorage on a pristine install, the
+session. Instead of only seeding localStorage on a pristine install, the
 app calls a new `mergeCache()` helper which unions the file contents with
-any existing entries and respects the `MAX_POOL` ceiling.  This guarantees
+any existing entries and respects the `MAX_POOL` ceiling. This guarantees
 that a newly generated town will be populated with a trait and secret for
 every adult (plus 1 % supernatural secrets) even if the AI button is
 never pressed.

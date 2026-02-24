@@ -1,6 +1,6 @@
+import * as cliProgress from "cli-progress";
 import fs from "fs";
 import path from "path";
-import * as cliProgress from "cli-progress";
 import { populateAIData } from "../src/ai.ts";
 import type { Person } from "../src/logic.ts";
 

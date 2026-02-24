@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file.
 - **Parallel AI Batch Processing**: Character data is now generated using a parallel worker pool (concurrency: 3). This significantly reduces total generation time by processing multiple batches simultaneously.
 - **Smart AI Caching**: Persistent `localStorage` pooling for traits and secrets. Once the cache contains enough unique entries for the current population size, the generator automatically "auto-fills" NPC details without requiring an API call.
 - **AI Data Population**: Fully integrated OpenRouter support (`deepseek-v3.2`) to generate 1920s-appropriate character traits, dark secrets, and relationship nuances for every adult NPC.
+- **Prebuilt cache merging**: On startup the app now fetches `prebuilt_cache.json` (moved into `public/`) and merges it into the localStorage cache, guaranteeing that every generated town can be populated with traits and secrets—including a 1 % chance of a supernatural secret—without any API interaction.
 - **Real Photo Integration**: Deterministic matching of NPCs to a pool of 700+ period-appropriate portraits using a seeded Fisher-Yates shuffle.
 
 ### Changed
