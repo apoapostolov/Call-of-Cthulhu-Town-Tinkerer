@@ -310,6 +310,14 @@ const STATUS_LABELS = [
   "Luxury",
 ];
 
+const SCALE_CLASS_TARGETS: Record<SettlementScale, number[]> = {
+  // Ordered as STATUS_LABELS: Slums -> Luxury.
+  Hamlet: [0.03, 0.15, 0.33, 0.25, 0.16, 0.06, 0.02, 0],
+  Town: [0.04, 0.15, 0.31, 0.24, 0.16, 0.07, 0.03, 0],
+  City: [0.08, 0.2, 0.3, 0.2, 0.12, 0.06, 0.03, 0.01],
+  Metropolis: [0.1, 0.22, 0.29, 0.18, 0.11, 0.05, 0.04, 0.01],
+};
+
 function normalizeStreetRoot(name: string): string {
   return name
     .replace(
@@ -715,43 +723,29 @@ function estimateCreditRating(person: Person): number {
   return clamp(credit, 0, 99);
 }
 
-function creditToClassScore(credit: number): number {
-  if (credit <= 0) return 8;
-  if (credit <= 9) return 22;
-  if (credit <= 19) return 34;
-  if (credit <= 34) return 46;
-  if (credit <= 49) return 56;
-  if (credit <= 69) return 70;
-  if (credit <= 89) return 82;
-  return 94;
+function statusLabelFromIndex(index: number): string {
+  return STATUS_LABELS[clamp(index, 0, STATUS_LABELS.length - 1)];
 }
 
-function scoreToClassIndex(score: number, scale: SettlementScale): number {
-  const cap = scale === "Hamlet" || scale === "Town" ? 6 : 7;
-  if (score < 16) return 0;
-  if (score < 28) return 1;
-  if (score < 40) return 2;
-  if (score < 52) return 3;
-  if (score < 64) return 4;
-  if (score < 76) return 5;
-  if (score < 88) return 6;
-  return cap;
+function wealthIndexByScaleQuantile(
+  scale: SettlementScale,
+  wealthQuantile: number,
+): number {
+  const targets = SCALE_CLASS_TARGETS[scale];
+  const highToLow = [...targets].reverse(); // Luxury -> Slums
+  let acc = 0;
+  for (let i = 0; i < highToLow.length; i++) {
+    acc += highToLow[i];
+    if (wealthQuantile <= acc + 1e-9) return 7 - i;
+  }
+  return 0;
 }
 
-function classIndexToScore(index: number): number {
-  return [8, 22, 34, 46, 58, 70, 82, 94][clamp(index, 0, 7)];
-}
-
-function statusLabelFromScore(score: number, scale: SettlementScale): string {
-  return STATUS_LABELS[scoreToClassIndex(score, scale)];
-}
-
-function parcelSocialClass(
+function parcelBaseValueScore(
   building: Building,
   model: MapModel,
   districtByName: Map<string, District>,
-  peopleById: Map<number, Person>,
-): string {
+): number {
   const cityCenter = { x: model.width * 0.5, y: model.height * 0.5 };
   const maxDist = Math.hypot(model.width, model.height) * 0.52;
   const centerDist = Math.hypot(building.center.x - cityCenter.x, building.center.y - cityCenter.y);
@@ -843,58 +837,93 @@ function parcelSocialClass(
   const localVariance = (Math.sin(building.center.x * 0.013 + building.center.y * 0.017) + 1) * 2.5;
   baseScore += localVariance - 2.5;
 
-  baseScore = clamp(baseScore, 6, 96);
+  return clamp(baseScore, 6, 96);
+}
 
-  const residentCredits = [...building.residents, ...building.workers]
-    .map((id) => peopleById.get(id))
-    .filter((p): p is Person => Boolean(p))
-    .map(estimateCreditRating);
+function creditToClassIndex(credit: number, scale: SettlementScale): number {
+  let idx = 0;
+  if (credit >= 90) idx = 7;
+  else if (credit >= 70) idx = 6;
+  else if (credit >= 50) idx = 5;
+  else if (credit >= 35) idx = 4;
+  else if (credit >= 20) idx = 3;
+  else if (credit >= 10) idx = 2;
+  else if (credit >= 1) idx = 1;
+  const cap = scale === "Hamlet" || scale === "Town" ? 6 : 7;
+  return clamp(idx, 0, cap);
+}
 
-  // Hard cap for small settlements: affluent max.
-  if ((model.scale === "Hamlet" || model.scale === "Town") && baseScore > 87.5) {
-    baseScore = 87.5;
-  }
+function computeBuildingClassMap(
+  model: MapModel,
+  peopleById: Map<number, Person>,
+  districtByName: Map<string, District>,
+): Map<number, string> {
+  const cap = model.scale === "Hamlet" || model.scale === "Town" ? 6 : 7;
+  const scores = model.buildings.map((b) => ({
+    id: b.id,
+    baseScore: parcelBaseValueScore(b, model, districtByName),
+  }));
 
-  // Luxury in big settlements requires converging high-value factors.
-  const luxuryEligible =
-    (model.scale === "City" || model.scale === "Metropolis") &&
-    centerIndex > 0.66 &&
-    affluentNear > 0.58 &&
-    industrialNear < 0.28 &&
-    (building.kind === "Commercial" || building.kind === "Civic" || building.kind === "Mixed");
-  if (!luxuryEligible && baseScore >= 88) baseScore = 87.8;
+  const sorted = [...scores].sort((a, b) => {
+    if (b.baseScore !== a.baseScore) return b.baseScore - a.baseScore;
+    return a.id - b.id;
+  });
+  const rankById = new Map<number, number>();
+  for (let i = 0; i < sorted.length; i++) rankById.set(sorted[i].id, i);
 
-  // Occupant override by Credit Rating (CoC style):
-  // 0 penniless, 1-9 poor, 10-49 average, 50-89 wealthy, 90+ rich/super-rich.
-  // Occupants only upgrade when they significantly exceed parcel baseline.
-  if (residentCredits.length) {
-    const avgCredit = residentCredits.reduce((a, b) => a + b, 0) / residentCredits.length;
-    const maxCredit = Math.max(...residentCredits);
-    const baselineClassIdx = scoreToClassIndex(baseScore, model.scale);
-    const baselineScore = classIndexToScore(baselineClassIdx);
-    const creditScore = creditToClassScore(maxCredit);
-    const creditDelta = creditScore - baselineScore;
+  const classById = new Map<number, string>();
+  const buildingById = new Map<number, Building>(model.buildings.map((b) => [b.id, b]));
+  const denom = Math.max(1, sorted.length - 1);
+  for (const score of sorted) {
+    const rank = rankById.get(score.id) ?? 0;
+    const wealthQuantile = rank / denom;
+    let classIdx = wealthIndexByScaleQuantile(model.scale, wealthQuantile);
+    classIdx = clamp(classIdx, 0, cap);
 
-    if (maxCredit >= 60 && creditDelta >= 12) {
-      let stepUp = 1;
-      if (maxCredit >= 90 && creditDelta >= 22 && avgCredit >= 58) stepUp = 2;
+    const building = buildingById.get(score.id);
+    if (!building) {
+      classById.set(score.id, statusLabelFromIndex(classIdx));
+      continue;
+    }
 
-      const chance =
-        0.18 +
-        clamp((maxCredit - 60) / 120, 0, 0.28) +
-        clamp((creditDelta - 12) / 140, 0, 0.22);
-      const deterministicRoll =
-        ((building.id * 1103515245 + 12345) >>> 0) / 0xffffffff;
+    const residentCredits = [...building.residents, ...building.workers]
+      .map((id) => peopleById.get(id))
+      .filter((p): p is Person => Boolean(p))
+      .map(estimateCreditRating);
 
-      if (deterministicRoll < chance) {
-        const maxIdx = model.scale === "Hamlet" || model.scale === "Town" ? 6 : 7;
-        const upgradedIdx = clamp(baselineClassIdx + stepUp, 0, maxIdx);
-        baseScore = classIndexToScore(upgradedIdx);
+    if (residentCredits.length > 0) {
+      const avgCredit = residentCredits.reduce((a, b) => a + b, 0) / residentCredits.length;
+      const maxCredit = Math.max(...residentCredits);
+      const desiredIdx = creditToClassIndex(maxCredit, model.scale);
+
+      if (desiredIdx > classIdx && maxCredit >= 70 && desiredIdx - classIdx >= 2) {
+        const delta = desiredIdx - classIdx;
+        const chance = clamp(
+          0.04 + delta * 0.1 + (maxCredit - 70) * 0.003 + (avgCredit - 50) * 0.0015,
+          0,
+          0.42,
+        );
+        const roll = ((score.id * 1103515245 + 12345) >>> 0) / 0xffffffff;
+        if (roll < chance) {
+          const step = delta >= 3 && maxCredit >= 88 ? 2 : 1;
+          classIdx = clamp(classIdx + step, 0, cap);
+        }
+      }
+
+      if (desiredIdx < classIdx && maxCredit <= 12 && classIdx >= 3) {
+        const downDelta = classIdx - desiredIdx;
+        const chance = clamp(0.06 + downDelta * 0.08 + (12 - maxCredit) * 0.01, 0, 0.46);
+        const roll = ((score.id * 214013 + 2531011) >>> 0) / 0xffffffff;
+        if (roll < chance) {
+          classIdx = clamp(classIdx - 1, 0, cap);
+        }
       }
     }
+
+    classById.set(score.id, statusLabelFromIndex(classIdx));
   }
 
-  return statusLabelFromScore(baseScore, model.scale);
+  return classById;
 }
 
 function districtByPoint(
@@ -1947,6 +1976,43 @@ function createMapModel(
   };
 }
 
+export function debugClassDistribution(
+  population: number,
+  seed: number,
+  people: Person[],
+): {
+  scale: SettlementScale;
+  totalBuildings: number;
+  counts: Record<string, number>;
+  percentages: Record<string, number>;
+} {
+  const model = createMapModel(population, seed, people);
+  const peopleById = new Map<number, Person>(people.map((p) => [p.id, p]));
+  const districtByName = new Map<string, District>(
+    model.districts.map((d) => [d.name, d]),
+  );
+  const classByBuilding = computeBuildingClassMap(model, peopleById, districtByName);
+
+  const counts: Record<string, number> = Object.fromEntries(
+    STATUS_LABELS.map((label) => [label, 0]),
+  );
+  for (const label of classByBuilding.values()) counts[label] = (counts[label] ?? 0) + 1;
+
+  const totalBuildings = model.buildings.length;
+  const percentages: Record<string, number> = {};
+  for (const label of STATUS_LABELS) {
+    percentages[label] =
+      totalBuildings > 0 ? Number(((counts[label] / totalBuildings) * 100).toFixed(2)) : 0;
+  }
+
+  return {
+    scale: model.scale,
+    totalBuildings,
+    counts,
+    percentages,
+  };
+}
+
 function ensureCamera(
   svgEl: SVGSVGElement,
   width: number,
@@ -2328,6 +2394,11 @@ export function renderTownMapPrototype(params: RenderParams): void {
   const districtByName = new Map<string, District>(
     model.districts.map((d) => [d.name, d]),
   );
+  const socialClassByBuildingId = computeBuildingClassMap(
+    model,
+    peopleById,
+    districtByName,
+  );
 
   legendEl.innerHTML = model.districts
     .map(
@@ -2360,7 +2431,8 @@ export function renderTownMapPrototype(params: RenderParams): void {
   hoverEl.innerHTML = defaultHoverHtml;
 
   const renderBuildingPanel = (building: Building) => {
-    const socialClass = parcelSocialClass(building, model, districtByName, peopleById);
+    const socialClass =
+      socialClassByBuildingId.get(building.id) ?? "Working Class";
     const kindLabel = building.kind === "Mixed" ? "Social" : building.kind;
     hoverEl.innerHTML = `
       <h4>${building.address}</h4>
