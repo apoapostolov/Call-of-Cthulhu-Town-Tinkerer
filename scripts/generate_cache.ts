@@ -108,7 +108,7 @@ async function main() {
         apiKey,
         () => {},
         undefined,
-        supRate
+        supRate,
       );
 
       for (const [id, data] of result.people.entries()) {

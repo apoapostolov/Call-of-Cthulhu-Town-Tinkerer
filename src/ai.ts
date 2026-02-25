@@ -24,13 +24,13 @@ export function relKey(a: number, b: number): string {
   return `${Math.min(a, b)}-${Math.max(a, b)}`;
 }
 
-const SYSTEM_PROMPT = `You generate 1920s‑era character data for tabletop games. 
+const SYSTEM_PROMPT = `You generate 1920s‑era character data for tabletop games.
 Rules:
 - TRAITS: 2–3 comma-separated personality descriptors. At least one must be a flaw, vice, or eccentricity.
 - SECRET: ≤6 words, terse present tense.
 - For typical characters, provide a mundane, era-appropriate secret (affair, debt, crime, addiction, hidden past, etc.).
 - For characters marked '[!]', provide a truly strange or uncanny secret. Be creative: they might be a time traveler from 1950, read thoughts of birds, host a benevolent jazz spirit, carry a cursed relic that whispers futures, or have skin that turns translucent in moonlight. Avoid cliches like "sees ghosts" or "hears whispers" unless it has a very specific, unique twist.
-Secrets should fit the 1920s pulp atmosphere but be diverse and surprising. 
+Secrets should fit the 1920s pulp atmosphere but be diverse and surprising.
 All secrets for characters marked '[!]' MUST start with the [!] marker.`;
 
 function buildBatchPrompt(
@@ -314,7 +314,7 @@ export async function populateAIData(
   apiKey: string,
   onProgress: (batchDone: number, batchTotal: number, status: string) => void,
   signal?: AbortSignal,
-  supRate = 0.01
+  supRate = 0.01,
 ): Promise<AIResult> {
   // Select percentage of adults (age ≥ 18) to receive supernatural secrets deterministically
   const rng = mulberry32(seed ^ 0xdeadbeef);
@@ -322,7 +322,10 @@ export async function populateAIData(
 
   // Teens (age 13–17) are excluded from supernatural secrets
   const supEligible = adults.filter((p) => p.age >= 18);
-  const supernaturalCount = Math.max(1, Math.round(supEligible.length * supRate));
+  const supernaturalCount = Math.max(
+    1,
+    Math.round(supEligible.length * supRate),
+  );
   const supernaturalIds = new Set<number>();
   const shuffled = [...supEligible];
   for (let i = shuffled.length - 1; i > 0; i--) {
