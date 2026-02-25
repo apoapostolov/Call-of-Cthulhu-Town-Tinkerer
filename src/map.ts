@@ -1,6 +1,6 @@
 import type { Person } from "./logic.ts";
 import { STREET_NAME_BANK } from "./databanks.ts";
-import { mulberry32 } from "./logic.ts";
+import { estimateCreditRating, mulberry32 } from "./logic.ts";
 
 type SettlementScale = "Hamlet" | "Town" | "City" | "Metropolis";
 type DistrictKind =
@@ -59,6 +59,7 @@ interface Building {
   points: Point[];
   structurePoints: Point[];
   address: string;
+  workPhone?: string | null;
   residents: number[];
   workers: number[];
 }
@@ -99,8 +100,21 @@ interface RenderParams {
   getPersonName: (p: Person) => string;
   onPersonClick: (personId: number) => void;
   onPersonAddressIndex?: (
-    index: Map<number, { residential: string[]; work: string[] }>,
+    index: Map<
+      number,
+      { residential: string[]; work: string[]; workPhones: string[] }
+    >,
   ) => void;
+  onPhonebookEntries?: (entries: PhonebookEntry[]) => void;
+}
+
+export interface PhonebookEntry {
+  kind: "person" | "business";
+  name: string;
+  familyName: string;
+  givenName: string;
+  address: string;
+  phone: string;
 }
 
 interface CameraState {
@@ -696,64 +710,6 @@ function pickDescriptor(kind: BuildingKind, rng: () => number): string {
   return bank[Math.floor(rng() * bank.length)];
 }
 
-function estimateCreditRating(person: Person): number {
-  const job = (person.job ?? "").toLowerCase();
-  let credit = 28;
-  if (!job || job === "no profession") credit = 8;
-  if (job.includes("child") || job.includes("student")) credit = 6;
-  if (job.includes("retiree")) credit = 22;
-
-  if (
-    job.includes("doctor") ||
-    job.includes("professor") ||
-    job.includes("lawyer") ||
-    job.includes("bank") ||
-    job.includes("judge") ||
-    job.includes("owner") ||
-    job.includes("politician")
-  ) {
-    credit = 74;
-  }
-  if (
-    credit < 70 &&
-    (job.includes("manager") ||
-      job.includes("editor") ||
-      job.includes("merchant") ||
-      job.includes("accountant") ||
-      job.includes("architect") ||
-      job.includes("engineer"))
-  ) {
-    credit = Math.max(credit, 56);
-  }
-  if (
-    credit < 56 &&
-    (job.includes("clerk") ||
-      job.includes("teacher") ||
-      job.includes("nurse") ||
-      job.includes("police") ||
-      job.includes("post") ||
-      job.includes("journalist"))
-  ) {
-    credit = Math.max(credit, 38);
-  }
-  if (
-    job.includes("labor") ||
-    job.includes("dock") ||
-    job.includes("factory") ||
-    job.includes("miner") ||
-    job.includes("laundry") ||
-    job.includes("porter")
-  ) {
-    credit = Math.min(credit, 18);
-  }
-  if (job.includes("unemployed") || job.includes("beggar")) credit = Math.min(credit, 4);
-
-  const jitter = (((person.id * 2654435761) >>> 0) % 11) - 5;
-  credit += jitter;
-  if (person.age >= 60) credit += 2;
-  return clamp(credit, 0, 99);
-}
-
 function statusLabelFromIndex(index: number): string {
   return STATUS_LABELS[clamp(index, 0, STATUS_LABELS.length - 1)];
 }
@@ -985,36 +941,36 @@ function randomBuildingKind(
   const roll = rng();
   if (districtKind === "Factory Belt") {
     if (roll < 0.62) return "Industrial";
-    if (roll < 0.84) return "Mixed";
-    if (roll < 0.95) return "Commercial";
+    if (roll < 0.74) return "Mixed";
+    if (roll < 0.9) return "Commercial";
     return "Residential";
   }
   if (districtKind === "Market Ward") {
-    if (roll < 0.52) return "Commercial";
-    if (roll < 0.78) return "Mixed";
-    if (roll < 0.93) return "Residential";
+    if (roll < 0.58) return "Commercial";
+    if (roll < 0.68) return "Mixed";
+    if (roll < 0.9) return "Residential";
     return "Civic";
   }
   if (districtKind === "Civic Hill") {
-    if (roll < 0.4) return "Civic";
-    if (roll < 0.7) return "Commercial";
-    if (roll < 0.9) return "Residential";
+    if (roll < 0.44) return "Civic";
+    if (roll < 0.76) return "Commercial";
+    if (roll < 0.94) return "Residential";
     return "Mixed";
   }
   if (districtKind === "Harbor Side") {
     if (roll < 0.46) return "Industrial";
-    if (roll < 0.72) return "Commercial";
-    if (roll < 0.9) return "Mixed";
+    if (roll < 0.76) return "Commercial";
+    if (roll < 0.88) return "Mixed";
     return "Residential";
   }
   if (districtKind === "Garden Ward") {
-    if (roll < 0.64) return "Residential";
-    if (roll < 0.84) return "Civic";
-    if (roll < 0.95) return "Commercial";
+    if (roll < 0.72) return "Residential";
+    if (roll < 0.9) return "Civic";
+    if (roll < 0.98) return "Commercial";
     return "Mixed";
   }
-  if (roll < 0.7) return "Residential";
-  if (roll < 0.88) return "Mixed";
+  if (roll < 0.76) return "Residential";
+  if (roll < 0.84) return "Mixed";
   if (roll < 0.96) return "Commercial";
   return "Civic";
 }
@@ -1606,9 +1562,11 @@ function minDistanceToPoints(p: Point, cloud: Point[]): number {
 function residentialCapacity(building: Building): number {
   const b = polygonBounds(building.structurePoints);
   const area = (b.right - b.left) * (b.bottom - b.top);
-  if (building.kind === "Residential") return clamp(Math.floor(area / 28), 2, 10);
-  if (building.kind === "Mixed") return clamp(Math.floor(area / 36), 1, 6);
-  if (building.kind === "Commercial") return clamp(Math.floor(area / 80), 0, 2);
+  if (building.kind === "Residential") return clamp(Math.floor(area / 24), 3, 14);
+  if (building.kind === "Mixed") return clamp(Math.floor(area / 44), 1, 4);
+  // Very limited lodging in non-industrial commercial stock:
+  // usually one household, sometimes two.
+  if (building.kind === "Commercial") return clamp(Math.floor(area / 180), 0, 3);
   return 0;
 }
 
@@ -1635,6 +1593,155 @@ function hasPaidProfession(person: Person): boolean {
   );
 }
 
+const WORK_PHONE_EXCHANGE_BANK_1920 = [
+  "Main",
+  "Union",
+  "Market",
+  "Broadway",
+  "Harbor",
+  "Depot",
+  "Canal",
+  "Prospect",
+  "Liberty",
+  "Beacon",
+  "Telegraph",
+  "Station",
+  "Federal",
+  "Mason",
+  "Granite",
+];
+
+function assignBuildingWorkPhones(buildings: Building[], rng: () => number): void {
+  const used = new Set<string>();
+  const makeUniquePhone = (): string => {
+    let attempts = 0;
+    while (attempts < 60) {
+      attempts++;
+      const exchange =
+        WORK_PHONE_EXCHANGE_BANK_1920[
+          Math.floor(rng() * WORK_PHONE_EXCHANGE_BANK_1920.length)
+        ];
+      const line = Math.floor(rng() * 9000) + 1000;
+      const phone = `${exchange} ${line}`;
+      if (used.has(phone)) continue;
+      used.add(phone);
+      return phone;
+    }
+    const fallback = `Main ${1000 + used.size}`;
+    used.add(fallback);
+    return fallback;
+  };
+
+  for (const b of buildings) b.workPhone = null;
+  for (const b of buildings) {
+    if (b.kind === "Commercial" || b.workers.length > 0) {
+      b.workPhone = makeUniquePhone();
+    }
+  }
+}
+
+function rebalanceEconomicParcels(
+  buildings: Building[],
+  people: Person[],
+  center: Point,
+  scale: SettlementScale,
+  rng: () => number,
+): void {
+  if (buildings.length === 0 || people.length === 0) return;
+
+  const paidWorkers = people.filter(hasPaidProfession).length;
+  const mixedRatioTarget =
+    scale === "Hamlet"
+      ? 0.03
+      : scale === "Town"
+        ? 0.05
+        : scale === "City"
+          ? 0.08
+          : 0.11;
+  const commercialRatioTarget =
+    scale === "Hamlet"
+      ? 0.09
+      : scale === "Town"
+        ? 0.11
+        : scale === "City"
+          ? 0.13
+          : 0.15;
+  const minCommercial = Math.ceil(buildings.length * commercialRatioTarget);
+  const maxMixed = Math.ceil(buildings.length * mixedRatioTarget);
+  const minWorkLots = Math.max(
+    Math.ceil(buildings.length * (mixedRatioTarget + commercialRatioTarget)),
+    Math.ceil(paidWorkers / 22),
+  );
+  const minWorkCapacity = Math.ceil(paidWorkers * 1.05);
+
+  const countByKind = (kind: BuildingKind) =>
+    buildings.reduce((acc, b) => acc + (b.kind === kind ? 1 : 0), 0);
+  const countWorkLots = () =>
+    buildings.reduce(
+      (acc, b) => acc + (b.kind === "Mixed" || b.kind === "Commercial" ? 1 : 0),
+      0,
+    );
+  const totalWorkCapacity = () =>
+    buildings.reduce((acc, b) => acc + workerCapacity(b), 0);
+
+  const maxDist = Math.hypot(
+    Math.max(center.x, 1),
+    Math.max(center.y, 1),
+  );
+  const candidates = buildings
+    .filter((b) => b.kind === "Residential" || b.kind === "Civic")
+    .map((b) => ({
+      building: b,
+      dist: Math.hypot(b.center.x - center.x, b.center.y - center.y),
+      centrality: 1 - clamp(Math.hypot(b.center.x - center.x, b.center.y - center.y) / maxDist, 0, 1),
+    }))
+    .sort((a, b) => a.dist - b.dist);
+
+  const mixedCoreCutoff =
+    scale === "Hamlet" ? 0.76 : scale === "Town" ? 0.72 : scale === "City" ? 0.68 : 0.64;
+
+  let idx = 0;
+  while (
+    (
+      countByKind("Commercial") < minCommercial ||
+      countWorkLots() < minWorkLots ||
+      totalWorkCapacity() < minWorkCapacity
+    ) &&
+    idx < candidates.length
+  ) {
+    const c = candidates[idx++];
+    const b = c.building;
+    if (b.kind !== "Residential" && b.kind !== "Civic") continue;
+
+    const centrality = c.centrality;
+    const allowMixed = centrality >= mixedCoreCutoff && countByKind("Mixed") < maxMixed;
+    const preferCommercial = countByKind("Commercial") < minCommercial || centrality < mixedCoreCutoff;
+    const nextKind: BuildingKind = allowMixed && !preferCommercial && rng() < 0.35 ? "Mixed" : "Commercial";
+    b.kind = nextKind;
+    b.descriptor = pickDescriptor(nextKind, rng);
+  }
+
+  // In smaller settlements, mixed-use should be tightly concentrated near core streets.
+  const mixedFar = buildings
+    .filter((b) => b.kind === "Mixed")
+    .map((b) => ({
+      building: b,
+      centrality: 1 - clamp(Math.hypot(b.center.x - center.x, b.center.y - center.y) / maxDist, 0, 1),
+    }))
+    .sort((a, b) => a.centrality - b.centrality);
+
+  let mixedCount = countByKind("Mixed");
+  const commercialCount = () => countByKind("Commercial");
+  for (const row of mixedFar) {
+    if (mixedCount <= maxMixed) break;
+    if (row.centrality >= mixedCoreCutoff) continue;
+    const toKind: BuildingKind = commercialCount() < minCommercial ? "Commercial" : "Residential";
+    row.building.kind = toKind;
+    row.building.descriptor = pickDescriptor(toKind, rng);
+    mixedCount -= 1;
+  }
+}
+
 function assignParcelOccupancy(
   buildings: Building[],
   people: Person[],
@@ -1646,13 +1753,68 @@ function assignParcelOccupancy(
     b.workers = [];
   }
 
-  const homeCandidates = buildings.filter(
-    (b) => b.kind === "Residential" || b.kind === "Mixed" || b.kind === "Commercial",
+  const desiredResidents = people.length;
+  const paidWorkers = people.filter(hasPaidProfession).length;
+  const reserveFactor = scale === "Hamlet" ? 1.08 : scale === "Town" ? 1.12 : 1.15;
+  const desiredCapacity = Math.ceil(desiredResidents * reserveFactor);
+  const desiredResidentialOnly = Math.ceil(desiredResidents * 0.82);
+  const minWorkCapacity = Math.ceil(
+    paidWorkers * (scale === "Hamlet" ? 0.9 : scale === "Town" ? 0.95 : 1.0),
   );
-  const homePool = homeCandidates.length > 0 ? homeCandidates : buildings;
-  const homeCap = new Map<number, number>(
-    homePool.map((b) => [b.id, residentialCapacity(b)]),
+
+  const residentialOnlyCap = () =>
+    buildings
+      .filter((b) => b.kind === "Residential")
+      .reduce((acc, b) => acc + residentialCapacity(b), 0);
+  const totalHomeCap = () =>
+    buildings
+      .filter((b) => b.kind === "Residential" || b.kind === "Mixed" || b.kind === "Commercial")
+      .reduce((acc, b) => acc + residentialCapacity(b), 0);
+  const totalWorkCap = () =>
+    buildings.reduce((acc, b) => acc + workerCapacity(b), 0);
+
+  // Rebalance stock so settlement has enough homes in neighborhood-like residential parcels.
+  const conversionCandidates = buildings
+    .filter((b) => b.kind === "Mixed" || b.kind === "Commercial")
+    .sort((a, b) => {
+      const da = a.kind === "Mixed" ? 0 : 1;
+      const db = b.kind === "Mixed" ? 0 : 1;
+      if (da !== db) return da - db;
+      const aa = polygonBounds(a.structurePoints);
+      const ab = polygonBounds(b.structurePoints);
+      const areaA = (aa.right - aa.left) * (aa.bottom - aa.top);
+      const areaB = (ab.right - ab.left) * (ab.bottom - ab.top);
+      return areaA - areaB;
+    });
+  let ci = 0;
+  while (
+    (residentialOnlyCap() < desiredResidentialOnly || totalHomeCap() < desiredCapacity) &&
+    ci < conversionCandidates.length
+  ) {
+    const candidate = conversionCandidates[ci++];
+    if (candidate.kind === "Residential") continue;
+    const previousKind = candidate.kind;
+    candidate.kind = "Residential";
+    if (totalWorkCap() < minWorkCapacity) {
+      candidate.kind = previousKind;
+      continue;
+    }
+    candidate.descriptor = pickDescriptor("Residential", rng);
+  }
+
+  const residentialPool = buildings.filter((b) => b.kind === "Residential");
+  const mixedPool = buildings.filter((b) => b.kind === "Mixed");
+  const commercialPool = buildings.filter((b) => b.kind === "Commercial");
+  const homePool = [...residentialPool, ...mixedPool, ...commercialPool];
+  const homeCap = new Map<number, number>(homePool.map((b) => [b.id, residentialCapacity(b)]));
+  const commercialResidentCap = Math.max(
+    2,
+    Math.floor(
+      desiredResidents *
+        (scale === "Hamlet" ? 0.12 : scale === "Town" ? 0.09 : scale === "City" ? 0.07 : 0.06),
+    ),
   );
+  let commercialResidentsAssigned = 0;
   const familyGroups = new Map<number, Person[]>();
   for (const p of people) {
     const key =
@@ -1667,18 +1829,35 @@ function assignParcelOccupancy(
   }
 
   const groups = [...familyGroups.values()].sort((a, b) => b.length - a.length);
+  const pickHomeBuilding = (groupSize: number): Building => {
+    const availRes = residentialPool.filter((b) => (homeCap.get(b.id) ?? 0) >= groupSize);
+    if (availRes.length > 0) return availRes[Math.floor(rng() * availRes.length)];
+    const availMixed = mixedPool.filter((b) => (homeCap.get(b.id) ?? 0) >= groupSize);
+    if (availMixed.length > 0) return availMixed[Math.floor(rng() * availMixed.length)];
+    if (commercialResidentsAssigned < commercialResidentCap) {
+      const availCom = commercialPool.filter((b) => (homeCap.get(b.id) ?? 0) >= groupSize);
+      if (availCom.length > 0) return availCom[Math.floor(rng() * availCom.length)];
+    }
+
+    const anyRes = residentialPool.filter((b) => (homeCap.get(b.id) ?? 0) > 0);
+    if (anyRes.length > 0) return anyRes[Math.floor(rng() * anyRes.length)];
+    const anyMixed = mixedPool.filter((b) => (homeCap.get(b.id) ?? 0) > 0);
+    if (anyMixed.length > 0) return anyMixed[Math.floor(rng() * anyMixed.length)];
+    const anyCom = commercialPool.filter((b) => (homeCap.get(b.id) ?? 0) > 0);
+    if (anyCom.length > 0) return anyCom[Math.floor(rng() * anyCom.length)];
+    return homePool[Math.floor(rng() * homePool.length)];
+  };
+
   for (const group of groups) {
-    const options = homePool.filter((b) => (homeCap.get(b.id) ?? 0) >= Math.min(1, group.length));
-    const picks = options.length > 0 ? options : homePool;
-    const anchor = picks[Math.floor(rng() * picks.length)];
+    const groupSize = Math.max(1, group.length);
+    const anchor = pickHomeBuilding(groupSize);
     for (const person of group) {
       let home = anchor;
       if ((homeCap.get(home.id) ?? 0) <= 0) {
-        home =
-          homePool.find((b) => (homeCap.get(b.id) ?? 0) > 0) ??
-          homePool[Math.floor(rng() * homePool.length)];
+        home = pickHomeBuilding(1);
       }
       home.residents.push(person.id);
+      if (home.kind === "Commercial") commercialResidentsAssigned += 1;
       homeCap.set(home.id, Math.max(0, (homeCap.get(home.id) ?? 0) - 1));
     }
   }
@@ -1688,10 +1867,9 @@ function assignParcelOccupancy(
   for (const b of buildings) for (const id of b.residents) hasHome.add(id);
   for (const p of people) {
     if (hasHome.has(p.id)) continue;
-    const fallback =
-      homePool.find((b) => (homeCap.get(b.id) ?? 0) > 0) ??
-      homePool[Math.floor(rng() * homePool.length)];
+    const fallback = pickHomeBuilding(1);
     fallback.residents.push(p.id);
+    if (fallback.kind === "Commercial") commercialResidentsAssigned += 1;
     homeCap.set(fallback.id, Math.max(0, (homeCap.get(fallback.id) ?? 0) - 1));
   }
 
@@ -2047,17 +2225,23 @@ function createMapModel(
           let kind = randomBuildingKind(rng, district.kind);
           const cornerBand = Math.min(config.width, config.height) * 0.2;
           if (normCenterDist < 0.1) {
-            kind = rng() < 0.72 ? "Commercial" : rng() < 0.88 ? "Civic" : "Mixed";
+            kind = rng() < 0.76 ? "Commercial" : rng() < 0.97 ? "Civic" : "Mixed";
           } else if (normCenterDist < 0.18 && rng() < 0.62) {
-            kind = rng() < 0.56 ? "Commercial" : "Mixed";
+            kind = rng() < 0.72 ? "Commercial" : rng() < 0.93 ? "Civic" : "Mixed";
           } else if (toFactory < cornerBand && rng() < 0.72) {
-            kind = rng() < 0.74 ? "Industrial" : "Mixed";
+            kind = rng() < 0.82 ? "Industrial" : "Commercial";
           } else if (
             normCenterDist > 0.27 &&
             toFactory > Math.min(config.width, config.height) * 0.22 &&
             rng() < 0.64
           ) {
             kind = "Residential";
+          } else if (
+            (scale === "Hamlet" || scale === "Town") &&
+            normCenterDist > 0.22 &&
+            kind === "Mixed"
+          ) {
+            kind = rng() < 0.72 ? "Residential" : "Commercial";
           }
 
           buildings.push({
@@ -2115,7 +2299,9 @@ function createMapModel(
     district.center = polygonCentroid(district.points);
   }
 
+  rebalanceEconomicParcels(buildings, people, center, scale, rng);
   assignParcelOccupancy(buildings, people, scale, rng);
+  assignBuildingWorkPhones(buildings, rng);
   trimRoadExtensionsByEmptyBlocks(
     roads,
     roadPoints,
@@ -2470,6 +2656,7 @@ export function renderTownMapPrototype(params: RenderParams): void {
     getPersonName,
     onPersonClick,
     onPersonAddressIndex,
+    onPhonebookEntries,
   } = params;
 
   const model = createMapModel(population, seed, people);
@@ -2608,7 +2795,7 @@ export function renderTownMapPrototype(params: RenderParams): void {
   );
   const personAddressIndex = new Map<
     number,
-    { residential: string[]; work: string[] }
+    { residential: string[]; work: string[]; workPhones: string[] }
   >();
   const upsertAddress = (
     personId: number,
@@ -2618,9 +2805,19 @@ export function renderTownMapPrototype(params: RenderParams): void {
     const existing = personAddressIndex.get(personId) ?? {
       residential: [],
       work: [],
+      workPhones: [],
     };
     const list = existing[type];
     if (!list.includes(address)) list.push(address);
+    personAddressIndex.set(personId, existing);
+  };
+  const upsertWorkPhone = (personId: number, phone: string) => {
+    const existing = personAddressIndex.get(personId) ?? {
+      residential: [],
+      work: [],
+      workPhones: [],
+    };
+    if (!existing.workPhones.includes(phone)) existing.workPhones.push(phone);
     personAddressIndex.set(personId, existing);
   };
   const markerLocations = new Map<number, PersonMarkerLocations>();
@@ -2653,10 +2850,51 @@ export function renderTownMapPrototype(params: RenderParams): void {
     }
     for (const wid of b.workers) {
       upsertAddress(wid, "work", b.address);
+      if (b.workPhone) upsertWorkPhone(wid, b.workPhone);
       upsertMarkerLocation(wid, "work", markerLoc);
     }
   }
   onPersonAddressIndex?.(personAddressIndex);
+  const phonebookEntries: PhonebookEntry[] = [];
+  for (const person of people) {
+    const fullName = getPersonName(person);
+    const nameParts = fullName.trim().split(/\s+/);
+    const givenName = nameParts.slice(0, Math.max(1, nameParts.length - 1)).join(" ");
+    const familyName = nameParts[nameParts.length - 1] ?? "";
+    const address =
+      personAddressIndex.get(person.id)?.residential[0] ??
+      personAddressIndex.get(person.id)?.work[0] ??
+      "Address unknown";
+    phonebookEntries.push({
+      kind: "person",
+      name: `${familyName}, ${givenName}`,
+      familyName,
+      givenName,
+      address,
+      phone: person.phoneNumber ?? "Unlisted",
+    });
+  }
+  for (const b of model.buildings) {
+    if (!b.workPhone) continue;
+    const businessName =
+      b.kind === "Commercial"
+        ? b.descriptor
+        : `${b.descriptor} ${b.kind === "Mixed" ? "House" : b.kind}`;
+    phonebookEntries.push({
+      kind: "business",
+      name: businessName,
+      familyName: businessName,
+      givenName: "",
+      address: b.address,
+      phone: b.workPhone,
+    });
+  }
+  phonebookEntries.sort((a, b) => {
+    const famCmp = a.familyName.localeCompare(b.familyName);
+    if (famCmp !== 0) return famCmp;
+    return a.givenName.localeCompare(b.givenName);
+  });
+  onPhonebookEntries?.(phonebookEntries);
   const markerState = ensureMarkerState(svgEl);
   markerState.locationsByPersonId = markerLocations;
   markerState.pointerLayer = pointerLayer;

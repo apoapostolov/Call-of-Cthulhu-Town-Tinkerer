@@ -6,11 +6,19 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- No user-visible changes yet.
+- Added 1920s household telephone support with Credit Rating-gated access, unique local exchange numbers, and character profile display when a resident has a registered line.
+- Added building work-line telephones: every commercial parcel now gets a unique phone number, and any staffed parcel receives a unique work line so workers can have a listed workplace number.
+- Added a town-header `Phonebook` entry point that opens a 1920s-styled directory modal listing residents and businesses with name, address, and phone number.
 
 ### Changed
 
-- No user-visible changes yet.
+- Increased the population slider ceiling from 10,000 to 50,000 while keeping direct slider-to-population mapping for responsive map regeneration.
+- Rebalanced mixed/commercial parcel supply with a new center-weighted economic pass so settlements maintain stronger work-lot presence and capacity near core districts.
+- Re-tuned 1920s land-use realism in villages/towns by reducing mixed-use prevalence, concentrating mixed parcels closer to the core/main-street area, and increasing separate residential/commercial representation.
+- Updated Character Profile to show a resident's work telephone when available.
+- Updated resident live-search dropdown to include each resident phone number in a dedicated mid-grey column.
+- Added phonebook pagination and instant name filtering within the modal so large settlements remain navigable.
+- Expanded name generation banks to 1,000 male first names, 1,000 female first names, and 1,000 surnames using US historical datasets for significantly higher resident-name variety.
 
 ## [1.1.0] - 2026-02-25
 
@@ -33,6 +41,7 @@ All notable changes to this project will be documented in this file.
 - Population slider now directly ranges from 1,000 to 10,000 for normal operation, while the numeric population field continues to allow larger custom values.
 - Map generation now scales road and parcel density within each settlement tier using population interpolation, so slider changes between 1,000 and 10,000 visibly affect map structure instead of only crossing tier boundaries.
 - Increased population scaling strength so larger settlements now produce meaningfully larger map extents and denser road/parcel capacity, improving visual and housing-capacity separation between 1,000 and 10,000 populations.
+- Rebalanced residence allocation: housing now strongly prioritizes residential buildings, mixed-use second, and only limited non-industrial commercial lodging (usually one household, occasionally two), with automatic residential-stock conversion when capacity is insufficient.
 
 ## [1.0.0] - 2026-02-24
 

@@ -18,6 +18,8 @@ export interface Person {
   parentIds: number[];
   siblingIds: number[];
   isGay: boolean;
+  creditRating?: number;
+  phoneNumber?: string | null;
 }
 
 export interface Stats {
@@ -49,6 +51,98 @@ export function mulberry32(a: number) {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+function clamp(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v));
+}
+
+export function estimateCreditRating(person: Person): number {
+  const job = (person.job ?? "").toLowerCase();
+  let credit = 28;
+  if (!job || job === "no profession") credit = 8;
+  if (job.includes("child") || job.includes("student")) credit = 6;
+  if (job.includes("retiree")) credit = 22;
+
+  if (
+    job.includes("doctor") ||
+    job.includes("professor") ||
+    job.includes("lawyer") ||
+    job.includes("bank") ||
+    job.includes("judge") ||
+    job.includes("owner") ||
+    job.includes("politician")
+  ) {
+    credit = 74;
+  }
+  if (
+    credit < 70 &&
+    (job.includes("manager") ||
+      job.includes("editor") ||
+      job.includes("merchant") ||
+      job.includes("accountant") ||
+      job.includes("architect") ||
+      job.includes("engineer"))
+  ) {
+    credit = Math.max(credit, 56);
+  }
+  if (
+    credit < 56 &&
+    (job.includes("clerk") ||
+      job.includes("teacher") ||
+      job.includes("nurse") ||
+      job.includes("police") ||
+      job.includes("post") ||
+      job.includes("journalist"))
+  ) {
+    credit = Math.max(credit, 38);
+  }
+  if (
+    job.includes("labor") ||
+    job.includes("dock") ||
+    job.includes("factory") ||
+    job.includes("miner") ||
+    job.includes("laundry") ||
+    job.includes("porter")
+  ) {
+    credit = Math.min(credit, 18);
+  }
+  if (job.includes("unemployed") || job.includes("beggar")) credit = Math.min(credit, 4);
+
+  const jitter = (((person.id * 2654435761) >>> 0) % 11) - 5;
+  credit += jitter;
+  if (person.age >= 60) credit += 2;
+  return clamp(credit, 0, 99);
+}
+
+const PHONE_EXCHANGE_BANK_1920 = [
+  "Main",
+  "Liberty",
+  "Maple",
+  "Cedar",
+  "Harbor",
+  "Union",
+  "Market",
+  "Prospect",
+  "Elm",
+  "Station",
+  "Federal",
+  "Riverside",
+  "Oak",
+  "Foundry",
+  "Beacon",
+  "Telegraph",
+  "Canal",
+  "Bridge",
+  "Summit",
+  "Granite",
+];
+
+function villagePhoneAccessBaseline(totalPopulation: number): number {
+  if (totalPopulation < 2_000) return 0.18;
+  if (totalPopulation < 20_000) return 0.29;
+  if (totalPopulation < 200_000) return 0.41;
+  return 0.54;
 }
 
 export async function generatePopulation(
@@ -301,6 +395,56 @@ export async function generatePopulation(
 
   for (const person of people.filter((p) => p.job === null)) {
     person.job = "No profession";
+  }
+
+  // 1920s household phone access:
+  // - family lines are keyed to household head (male head when present)
+  // - personal line access starts around Credit Rating 50+
+  // - coverage scales with settlement size (rural areas had lower penetration)
+  const exchange =
+    PHONE_EXCHANGE_BANK_1920[Math.floor(rng() * PHONE_EXCHANGE_BANK_1920.length)];
+  const usedPhoneNumbers = new Set<string>();
+  const accessBaseline = villagePhoneAccessBaseline(totalPopulation);
+  const familyGroups = new Map<number, Person[]>();
+  for (const p of people) {
+    const familyKey =
+      p.parentIds.length > 0
+        ? Math.min(...p.parentIds)
+        : p.spouseId !== null
+          ? Math.min(p.id, p.spouseId)
+          : p.id;
+    const arr = familyGroups.get(familyKey) ?? [];
+    arr.push(p);
+    familyGroups.set(familyKey, arr);
+  }
+
+  for (const household of familyGroups.values()) {
+    household.sort((a, b) => b.age - a.age || a.id - b.id);
+    const maleHead =
+      household.find((p) => p.gender === "male" && p.age >= 18) ?? null;
+    const head = maleHead ?? household[0];
+    const headCredit = estimateCreditRating(head);
+    const creditFactor = clamp((headCredit - 50) / 45, 0, 1);
+    const phoneChance = clamp(accessBaseline * (0.28 + creditFactor * 1.12), 0, 0.93);
+    const getsPhone = headCredit >= 50 && rng() < phoneChance;
+
+    let householdPhone: string | null = null;
+    if (getsPhone) {
+      let attempts = 0;
+      while (!householdPhone && attempts < 30) {
+        attempts++;
+        const line = Math.floor(rng() * 9000) + 1000;
+        const candidate = `${exchange} ${line}`;
+        if (usedPhoneNumbers.has(candidate)) continue;
+        usedPhoneNumbers.add(candidate);
+        householdPhone = candidate;
+      }
+    }
+
+    for (const member of household) {
+      member.creditRating = estimateCreditRating(member);
+      member.phoneNumber = householdPhone;
+    }
   }
 
   if (showProgress && onProgress) {

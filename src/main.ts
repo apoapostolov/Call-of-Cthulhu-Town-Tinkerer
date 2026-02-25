@@ -23,6 +23,7 @@ import {
 } from "./logic.ts";
 import {
   initTownMapControls,
+  type PhonebookEntry,
   renderTownMapPrototype,
   updateTownMapPersonPointers,
 } from "./map.ts";
@@ -96,7 +97,7 @@ let aiController: AbortController | null = null;
 let aiDataFromCache = false;
 let personAddressIndex = new Map<
   number,
-  { residential: string[]; work: string[] }
+  { residential: string[]; work: string[]; workPhones: string[] }
 >();
 let hoveredSearchPersonId: number | null = null;
 let selectedSearchPersonId: number | null = null;
@@ -107,6 +108,8 @@ type ResidentSearchEntry = {
 };
 let residentSearchIndex: ResidentSearchEntry[] = [];
 const residentNameById = new Map<number, string>();
+let phonebookEntries: PhonebookEntry[] = [];
+const PHONEBOOK_PAGE_SIZE = 44;
 
 function getApiKey(): string {
   return (
@@ -193,6 +196,9 @@ const townMapScaleEl = document.getElementById(
 const townMapTitleEl = document.getElementById(
   "townMapTitle",
 ) as HTMLHeadingElement;
+const townPhonebookBtn = document.getElementById(
+  "townPhonebookBtn",
+) as HTMLButtonElement;
 const townMapResidentSearchEl = document.getElementById(
   "townMapResidentSearch",
 ) as HTMLInputElement;
@@ -218,6 +224,9 @@ const createCultBtn = document.getElementById(
 ) as HTMLButtonElement;
 
 initTownMapControls(townMapSvgEl, mapZoomInBtn, mapZoomOutBtn, mapZoomResetBtn);
+townPhonebookBtn.addEventListener("click", () => {
+  openPhonebookModal();
+});
 
 function updateResidentMapPointers(): void {
   updateTownMapPersonPointers(
@@ -281,6 +290,8 @@ function showResidentSearchResults(query: string): void {
       const addresses = personAddressIndex.get(entry.id);
       const hasHome = (addresses?.residential.length ?? 0) > 0;
       const hasWork = (addresses?.work.length ?? 0) > 0;
+      const person = currentPopulation?.people[entry.id];
+      const phone = person?.phoneNumber ?? "";
       const badges = [
         hasHome ? '<span class="town-map-search-badge home">Home</span>' : "",
         hasWork ? '<span class="town-map-search-badge work">Work</span>' : "",
@@ -289,6 +300,7 @@ function showResidentSearchResults(query: string): void {
         .join("");
       return `<button class="town-map-search-item" data-person-id="${entry.id}" type="button">
         <span class="town-map-search-name">${entry.name}</span>
+        <span class="town-map-search-phone">${phone}</span>
         <span class="town-map-search-badges">${badges}</span>
       </button>`;
     })
@@ -359,6 +371,94 @@ function formatNumber(n: number): string {
   if (n >= 1000000) return (n / 1000000).toFixed(2) + "M";
   if (n >= 1000) return (n / 1000).toFixed(1) + "k";
   return n.toLocaleString("en-US");
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function filteredPhonebook(query: string): PhonebookEntry[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return phonebookEntries;
+  return phonebookEntries.filter((entry) =>
+    entry.name.toLowerCase().includes(q),
+  );
+}
+
+function renderPhonebookModal(searchQuery = "", page = 0): void {
+  const entries = filteredPhonebook(searchQuery);
+  const totalPages = Math.max(1, Math.ceil(entries.length / PHONEBOOK_PAGE_SIZE));
+  const current = Math.max(0, Math.min(totalPages - 1, page));
+  const start = current * PHONEBOOK_PAGE_SIZE;
+  const pageRows = entries.slice(start, start + PHONEBOOK_PAGE_SIZE);
+
+  modal.innerHTML = `
+    <div class="modal-header">
+      <h2>☎ ${escapeHtml(townMapTitleEl.textContent?.replace(/^🗺️\s*/, "") || "Town")} Phonebook</h2>
+      <button class="modal-close" id="closeModal">&times;</button>
+    </div>
+    <div class="phonebook-shell">
+      <div class="phonebook-controls">
+        <input id="phonebookSearch" type="text" placeholder="Search any name..." value="${escapeHtml(searchQuery)}" autocomplete="off" />
+        <div class="phonebook-meta">${entries.length.toLocaleString()} listings</div>
+      </div>
+      <div class="phonebook-table-wrap">
+        <table class="phonebook-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Address</th>
+              <th>Telephone</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${
+              pageRows.length === 0
+                ? '<tr><td colspan="3" class="phonebook-empty">No listings found.</td></tr>'
+                : pageRows
+                    .map(
+                      (entry) => `<tr>
+                      <td><span class="phonebook-kind ${entry.kind}">${entry.kind === "business" ? "Bus." : "Res."}</span> ${escapeHtml(entry.name)}</td>
+                      <td>${escapeHtml(entry.address)}</td>
+                      <td>${escapeHtml(entry.phone)}</td>
+                    </tr>`,
+                    )
+                    .join("")
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination phonebook-pagination">
+        <button id="phonebookPrev" ${current === 0 ? "disabled" : ""}>◀ Previous</button>
+        <span>Page ${current + 1} / ${totalPages}</span>
+        <button id="phonebookNext" ${current >= totalPages - 1 ? "disabled" : ""}>Next ▶</button>
+      </div>
+    </div>
+  `;
+  modalOverlay.classList.add("active");
+
+  document.getElementById("closeModal")?.addEventListener("click", closeModal);
+  const searchEl = document.getElementById("phonebookSearch") as HTMLInputElement | null;
+  searchEl?.focus();
+  searchEl?.setSelectionRange(searchEl.value.length, searchEl.value.length);
+  searchEl?.addEventListener("input", () => {
+    renderPhonebookModal(searchEl.value, 0);
+  });
+  document.getElementById("phonebookPrev")?.addEventListener("click", () => {
+    renderPhonebookModal(searchEl?.value ?? "", current - 1);
+  });
+  document.getElementById("phonebookNext")?.addEventListener("click", () => {
+    renderPhonebookModal(searchEl?.value ?? "", current + 1);
+  });
+}
+
+function openPhonebookModal(): void {
+  renderPhonebookModal("", 0);
 }
 
 function getPersonName(p: Person): string {
@@ -722,6 +822,13 @@ function showPersonDetail(personId: number) {
   const addressInfo = personAddressIndex.get(person.id);
   const residentialAddress = addressInfo?.residential[0] ?? "None";
   const workAddress = addressInfo?.work[0] ?? "None";
+  const workPhone = addressInfo?.workPhones[0] ?? "";
+  const phoneLine = person.phoneNumber
+    ? `<strong>Telephone:</strong> ${person.phoneNumber}<br>`
+    : "";
+  const workPhoneLine = workPhone
+    ? `<strong>Work Telephone:</strong> ${workPhone}<br>`
+    : "";
 
   modal.innerHTML = `
     <div class="modal-header">
@@ -739,7 +846,9 @@ function showPersonDetail(personId: number) {
             <strong>Family:</strong> ${cthulhuData.lastNames[person.lastNameIdx]}<br>
             <strong>Gender:</strong> ${genderLabel}${person.isGay ? " 🏳️\u200d🌈" : ""}<br>
             <strong>Residential:</strong> ${residentialAddress}<br>
-            <strong>Work:</strong> ${workAddress}
+            <strong>Work:</strong> ${workAddress}<br>
+            ${phoneLine}
+            ${workPhoneLine}
           </div>
           ${(() => {
             const ai = aiData.get(person.id);
@@ -830,6 +939,7 @@ async function doGenerate() {
 
   try {
     personAddressIndex = new Map();
+    phonebookEntries = [];
     currentPopulation = await generatePopulation(
       totalPopulation,
       currentSeed,
@@ -884,6 +994,9 @@ async function doGenerate() {
       onPersonClick: openPersonFromMap,
       onPersonAddressIndex: (index) => {
         personAddressIndex = index;
+      },
+      onPhonebookEntries: (entries) => {
+        phonebookEntries = entries;
       },
     });
     rebuildResidentSearchIndex();
@@ -1063,10 +1176,10 @@ function renderCults(): void {
 
 // Slider logic
 function sliderToPopulation(val: number) {
-  return Math.max(1000, Math.min(10000, Math.round(val)));
+  return Math.max(1000, Math.min(50000, Math.round(val)));
 }
 function populationToSlider(pop: number) {
-  return Math.max(1000, Math.min(10000, Math.round(pop)));
+  return Math.max(1000, Math.min(50000, Math.round(pop)));
 }
 
 let generateTimeout: any = null;

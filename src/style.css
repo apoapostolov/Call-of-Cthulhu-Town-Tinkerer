@@ -50,6 +50,24 @@ h1 {
   color: #f39c12;
   font-size: 1.35rem;
 }
+.town-map-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.town-phonebook-btn {
+  border: 1px solid rgba(186, 150, 106, 0.6);
+  background: rgba(117, 91, 63, 0.4);
+  color: #eadfc9;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  padding: 0.2rem 0.58rem;
+  cursor: pointer;
+  font-family: "Georgia", "Times New Roman", serif;
+}
+.town-phonebook-btn:hover {
+  background: rgba(148, 112, 76, 0.54);
+}
 .town-map-header p {
   color: #aaa;
   margin-top: 0.35rem;
@@ -127,8 +145,8 @@ h1 {
   color: #eadfc9;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+  justify-content: flex-start;
+  gap: 0.65rem;
   padding: 0.52rem 0.68rem;
   text-align: left;
   cursor: pointer;
@@ -142,10 +160,20 @@ h1 {
 .town-map-search-name {
   font-family: "Georgia", "Times New Roman", serif;
   font-size: 0.92rem;
+  flex: 1 1 auto;
+}
+.town-map-search-phone {
+  flex: 0 0 110px;
+  font-family: "Georgia", "Times New Roman", serif;
+  font-size: 0.84rem;
+  color: rgba(170, 170, 170, 0.92);
+  text-align: right;
+  white-space: nowrap;
 }
 .town-map-search-badges {
   display: inline-flex;
   gap: 0.3rem;
+  flex: 0 0 auto;
 }
 .town-map-search-badge {
   font-size: 0.68rem;
@@ -690,6 +718,101 @@ input[type="range"]::-webkit-slider-thumb {
 }
 .modal-close:hover {
   color: #fff;
+}
+.phonebook-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+.phonebook-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+.phonebook-controls input {
+  flex: 1;
+  background: rgba(17, 24, 39, 0.75);
+  color: #eadfc9;
+  border: 1px solid rgba(179, 144, 102, 0.34);
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+}
+.phonebook-controls input:focus {
+  outline: none;
+  border-color: rgba(186, 150, 106, 0.7);
+  box-shadow: 0 0 0 2px rgba(186, 150, 106, 0.18);
+}
+.phonebook-meta {
+  font-size: 0.82rem;
+  color: #afafaf;
+  white-space: nowrap;
+}
+.phonebook-table-wrap {
+  border: 1px solid rgba(179, 144, 102, 0.28);
+  border-radius: 10px;
+  overflow: auto;
+  max-height: 62vh;
+  background: rgba(236, 226, 206, 0.08);
+}
+.phonebook-table-wrap::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.phonebook-table-wrap::-webkit-scrollbar-track {
+  background: rgba(34, 28, 20, 0.48);
+}
+.phonebook-table-wrap::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(128, 96, 63, 0.84), rgba(98, 72, 46, 0.88));
+  border-radius: 8px;
+}
+.phonebook-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+  font-family: "Georgia", "Times New Roman", serif;
+  color: #eadfc9;
+}
+.phonebook-table th,
+.phonebook-table td {
+  border-bottom: 1px solid rgba(168, 136, 95, 0.22);
+  padding: 0.5rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+}
+.phonebook-table th {
+  background: rgba(124, 97, 67, 0.24);
+  color: #f1d8ad;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.phonebook-table td:nth-child(3) {
+  color: #d4d4d4;
+  white-space: nowrap;
+}
+.phonebook-empty {
+  color: #b0a189;
+  text-align: center;
+  padding: 1rem 0.6rem;
+}
+.phonebook-kind {
+  display: inline-block;
+  min-width: 42px;
+  margin-right: 0.35rem;
+  font-size: 0.72rem;
+  border-radius: 999px;
+  border: 1px solid rgba(186, 150, 106, 0.4);
+  color: #d9c7a8;
+  background: rgba(80, 63, 45, 0.35);
+  padding: 0.1rem 0.32rem;
+  text-align: center;
+}
+.phonebook-kind.business {
+  border-color: rgba(111, 159, 128, 0.55);
+  color: #cae3d1;
+}
+.phonebook-pagination {
+  margin-top: 0.2rem;
 }
 .people-list {
   display: grid;
