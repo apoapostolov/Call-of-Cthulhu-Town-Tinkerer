@@ -18,7 +18,7 @@ import type { Person } from "../src/logic.ts";
 // how many unique entries we aim to accumulate in each pool.
 // lower this if you want to conserve credits.
 // demo size for quick run – bump as needed for real cache
-const TARGET = 1_000;
+const TARGET = 1000;
 
 // number of people to send per request (matches web app BATCH_SIZE)
 const BATCH = 50;
@@ -98,12 +98,17 @@ async function main() {
         people.push(makePerson(nextId++));
       }
 
+      // If we are significantly behind on supernatural secrets, increase the rate in the prompts
+      const supRate = supra.length < TARGET ? 0.8 : 0.01;
+
       const result = await populateAIData(
         people,
         Date.now(),
         (p) => `Person ${p.id}`,
         apiKey,
         () => {},
+        undefined,
+        supRate
       );
 
       for (const [id, data] of result.people.entries()) {
