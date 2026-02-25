@@ -82,6 +82,10 @@ interface ScaleConfig {
   maxBuildings: number;
 }
 
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
 interface RenderParams {
   svgEl: SVGSVGElement;
   titleEl: HTMLElement;
@@ -614,39 +618,47 @@ function settlementScale(population: number): SettlementScale {
   return "Metropolis";
 }
 
-function scaleConfig(scale: SettlementScale): ScaleConfig {
+function scaleConfig(scale: SettlementScale, population: number): ScaleConfig {
+  const tierT =
+    scale === "Hamlet"
+      ? clamp((population - 1) / (2000 - 1), 0, 1)
+      : scale === "Town"
+        ? clamp((population - 2000) / (20000 - 2000), 0, 1)
+        : scale === "City"
+          ? clamp((population - 20000) / (200000 - 20000), 0, 1)
+          : clamp((population - 200000) / 800000, 0, 1);
   switch (scale) {
     case "Hamlet":
       return {
-        width: 1000,
-        height: 680,
-        verticalRoads: 9,
-        horizontalRoads: 7,
-        maxBuildings: 220,
+        width: Math.round(lerp(900, 1240, tierT)),
+        height: Math.round(lerp(620, 850, tierT)),
+        verticalRoads: Math.round(lerp(7, 11, tierT)),
+        horizontalRoads: Math.round(lerp(5, 8, tierT)),
+        maxBuildings: Math.round(lerp(130, 340, tierT)),
       };
     case "Town":
       return {
-        width: 1320,
-        height: 900,
-        verticalRoads: 13,
-        horizontalRoads: 10,
-        maxBuildings: 520,
+        width: Math.round(lerp(1260, 1960, tierT)),
+        height: Math.round(lerp(860, 1320, tierT)),
+        verticalRoads: Math.round(lerp(11, 21, tierT)),
+        horizontalRoads: Math.round(lerp(8, 16, tierT)),
+        maxBuildings: Math.round(lerp(360, 1400, tierT)),
       };
     case "City":
       return {
-        width: 1760,
-        height: 1160,
-        verticalRoads: 18,
-        horizontalRoads: 14,
-        maxBuildings: 1080,
+        width: Math.round(lerp(1760, 2460, tierT)),
+        height: Math.round(lerp(1160, 1680, tierT)),
+        verticalRoads: Math.round(lerp(18, 28, tierT)),
+        horizontalRoads: Math.round(lerp(14, 22, tierT)),
+        maxBuildings: Math.round(lerp(1100, 3000, tierT)),
       };
     case "Metropolis":
       return {
-        width: 2360,
-        height: 1520,
-        verticalRoads: 26,
-        horizontalRoads: 20,
-        maxBuildings: 2300,
+        width: Math.round(lerp(2460, 3400, tierT)),
+        height: Math.round(lerp(1680, 2380, tierT)),
+        verticalRoads: Math.round(lerp(28, 40, tierT)),
+        horizontalRoads: Math.round(lerp(22, 32, tierT)),
+        maxBuildings: Math.round(lerp(3000, 5600, tierT)),
       };
     default:
       return {
@@ -1026,13 +1038,127 @@ function pickNameFromBank(
   return bank[(idx + bank.length) % bank.length];
 }
 
-function roadTier(index: number, total: number): RoadTier {
+function baseRoadTierByIndex(index: number, total: number): RoadTier {
   const center = Math.floor(total / 2);
   if (index === center || index % Math.max(3, Math.floor(total / 5)) === 0) {
     return "arterial";
   }
   if (index % 2 === 0) return "collector";
   return "local";
+}
+
+function trimRoadExtensionsByEmptyBlocks(
+  roads: Road[],
+  roadPoints: Point[][],
+  blockBuildingCounts: number[][],
+  verticalCount: number,
+  horizontalCount: number,
+): void {
+  const fourEmptyAtIntersection: boolean[][] = Array.from(
+    { length: verticalCount },
+    () => Array(horizontalCount).fill(false),
+  );
+  for (let xi = 1; xi < verticalCount - 1; xi++) {
+    for (let yi = 1; yi < horizontalCount - 1; yi++) {
+      const occupied =
+        (blockBuildingCounts[xi - 1]?.[yi - 1] ?? 0) > 0 ||
+        (blockBuildingCounts[xi]?.[yi - 1] ?? 0) > 0 ||
+        (blockBuildingCounts[xi - 1]?.[yi] ?? 0) > 0 ||
+        (blockBuildingCounts[xi]?.[yi] ?? 0) > 0;
+      fourEmptyAtIntersection[xi][yi] = !occupied;
+    }
+  }
+
+  for (let xi = 0; xi < verticalCount; xi++) {
+    const roadIdx = xi;
+    const pts = roadPoints[roadIdx];
+    if (!pts || pts.length < 3) continue;
+    let start = 0;
+    while (start + 1 < pts.length - 1 && fourEmptyAtIntersection[xi][start + 1]) {
+      start++;
+    }
+    let end = pts.length - 1;
+    while (end - 1 > start && fourEmptyAtIntersection[xi][end - 1]) {
+      end--;
+    }
+    if (end - start + 1 < 2) continue;
+    if (start > 0 || end < pts.length - 1) {
+      const trimmed = pts.slice(start, end + 1);
+      roadPoints[roadIdx] = trimmed;
+      roads[roadIdx].path = pointsToPath(trimmed);
+    }
+  }
+
+  for (let yi = 0; yi < horizontalCount; yi++) {
+    const roadIdx = verticalCount + yi;
+    const pts = roadPoints[roadIdx];
+    if (!pts || pts.length < 3) continue;
+    let start = 0;
+    while (start + 1 < pts.length - 1 && fourEmptyAtIntersection[start + 1][yi]) {
+      start++;
+    }
+    let end = pts.length - 1;
+    while (end - 1 > start && fourEmptyAtIntersection[end - 1][yi]) {
+      end--;
+    }
+    if (end - start + 1 < 2) continue;
+    if (start > 0 || end < pts.length - 1) {
+      const trimmed = pts.slice(start, end + 1);
+      roadPoints[roadIdx] = trimmed;
+      roads[roadIdx].path = pointsToPath(trimmed);
+    }
+  }
+}
+
+function applyDemandBasedRoadTiers(
+  roads: Road[],
+  roadPoints: Point[][],
+  verticalCount: number,
+  horizontalCount: number,
+  width: number,
+  height: number,
+): void {
+  for (let i = 0; i < roads.length; i++) {
+    if (i < verticalCount) {
+      roads[i].tier = baseRoadTierByIndex(i, verticalCount);
+    } else {
+      roads[i].tier = baseRoadTierByIndex(i - verticalCount, horizontalCount);
+    }
+  }
+  if (roads.length === 0) return;
+  const edgeBand = Math.max(42, Math.min(width, height) * 0.08);
+  for (let xi = 0; xi < verticalCount; xi++) {
+    const road = roads[xi];
+    if (!road || road.tier !== "arterial") continue;
+    const pts = roadPoints[xi];
+    if (!pts || pts.length === 0) {
+      road.tier = "collector";
+      continue;
+    }
+    const mid = pts[Math.floor(pts.length / 2)];
+    const nearEdge =
+      xi === 0 ||
+      xi === verticalCount - 1 ||
+      Math.min(mid.x, width - mid.x) < edgeBand;
+    if (nearEdge) road.tier = "collector";
+  }
+
+  for (let yi = 0; yi < horizontalCount; yi++) {
+    const idx = verticalCount + yi;
+    const road = roads[idx];
+    if (!road || road.tier !== "arterial") continue;
+    const pts = roadPoints[idx];
+    if (!pts || pts.length === 0) {
+      road.tier = "collector";
+      continue;
+    }
+    const mid = pts[Math.floor(pts.length / 2)];
+    const nearEdge =
+      yi === 0 ||
+      yi === horizontalCount - 1 ||
+      Math.min(mid.y, height - mid.y) < edgeBand;
+    if (nearEdge) road.tier = "collector";
+  }
 }
 
 function rollTerrain(scale: SettlementScale, rng: () => number): TerrainKind {
@@ -1637,7 +1763,7 @@ function createMapModel(
   people: Person[],
 ): MapModel {
   const scale = settlementScale(population);
-  const config = scaleConfig(scale);
+  const config = scaleConfig(scale, population);
   const rng = mulberry32(seed ^ 0x4d4150);
   const townName = generateSettlementName(scale, rng);
 
@@ -1783,23 +1909,26 @@ function createMapModel(
   }
 
   const roads: Road[] = [];
+  const roadPoints: Point[][] = [];
   let roadId = 0;
   for (let i = 0; i < nodes.length; i++) {
+    roadPoints.push(nodes[i]);
     roads.push({
       id: roadId++,
       name: makeRoadName(roadNameOffset + i * roadNameStride, true),
       path: pointsToPath(nodes[i]),
-      tier: roadTier(i, nodes.length),
+      tier: "local",
     });
   }
   for (let i = 0; i < nodes[0].length; i++) {
     const pts: Point[] = [];
     for (let xi = 0; xi < nodes.length; xi++) pts.push(nodes[xi][i]);
+    roadPoints.push(pts);
     roads.push({
       id: roadId++,
       name: makeRoadName(roadNameOffset + i * (roadNameStride + 2), false),
       path: pointsToPath(pts),
-      tier: roadTier(i, nodes[0].length),
+      tier: "local",
     });
   }
 
@@ -1823,6 +1952,10 @@ function createMapModel(
           : coastDepth;
 
   const blockEntries: Array<{ xi: number; yi: number; block: Point[]; growthScore: number }> = [];
+  const blockBuildingCounts: number[][] = Array.from(
+    { length: nodes.length - 1 },
+    () => Array(nodes[0].length - 1).fill(0),
+  );
   for (let yi = 0; yi < nodes[0].length - 1; yi++) {
     for (let xi = 0; xi < nodes.length - 1; xi++) {
       const block = [
@@ -1946,6 +2079,7 @@ function createMapModel(
             residents: [],
             workers: [],
           });
+          blockBuildingCounts[xi][yi] += 1;
         }
       }
     }
@@ -1982,6 +2116,21 @@ function createMapModel(
   }
 
   assignParcelOccupancy(buildings, people, scale, rng);
+  trimRoadExtensionsByEmptyBlocks(
+    roads,
+    roadPoints,
+    blockBuildingCounts,
+    nodes.length,
+    nodes[0].length,
+  );
+  applyDemandBasedRoadTiers(
+    roads,
+    roadPoints,
+    nodes.length,
+    nodes[0].length,
+    config.width,
+    config.height,
+  );
 
   return {
     townName,

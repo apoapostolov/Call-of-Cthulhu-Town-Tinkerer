@@ -1063,12 +1063,10 @@ function renderCults(): void {
 
 // Slider logic
 function sliderToPopulation(val: number) {
-  if (val <= 500) return val * 10;
-  return 5000 + (val - 500) * 9900;
+  return Math.max(1000, Math.min(10000, Math.round(val)));
 }
 function populationToSlider(pop: number) {
-  if (pop <= 5000) return Math.round(pop / 10);
-  return 500 + Math.round((pop - 5000) / 9900);
+  return Math.max(1000, Math.min(10000, Math.round(pop)));
 }
 
 let generateTimeout: any = null;

@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - No user-visible changes yet.
 
+### Changed
+
+- No user-visible changes yet.
+
 ## [1.1.0] - 2026-02-25
 
 ### Added
@@ -19,6 +23,16 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Tons of minor changes and polish
+- Road hierarchy now promotes arterials by actual parcel demand (residents/workers near each road) instead of fixed border/axis rules, and border roads are excluded from arterial promotion.
+- Refined arterial selection again to use distance-limited occupied-frontage scoring with minimum demand/parcel thresholds and stronger edge-band exclusion, preventing empty/peripheral roads from being promoted in large settlements.
+- Added an interior fallback for arterial promotion with center-bias scoring, ensuring settlements still get central cross-cutting arterials when strict demand thresholds are sparse.
+- Reverted arterial quantity behavior to the denser classic grid-tier pattern and now only suppresses edge-border arterials by downgrading near-edge or outermost candidates.
+- Fixed a regression where edge suppression could remove all arterials by treating endpoint touches as edge hits; edge checks now use road-axis position so interior roads remain arterial in towns/cities.
+- Added road-tail trimming for empty outskirts: when interior edge-side intersections border four empty blocks, roads no longer extend further through adjacent zero-building regions.
+- Optimized road-rejection and arterial-edge checks by replacing per-road geometry scans with axis/index-based math and cached empty-intersection masks, reducing overhead on larger settlements.
+- Population slider now directly ranges from 1,000 to 10,000 for normal operation, while the numeric population field continues to allow larger custom values.
+- Map generation now scales road and parcel density within each settlement tier using population interpolation, so slider changes between 1,000 and 10,000 visibly affect map structure instead of only crossing tier boundaries.
+- Increased population scaling strength so larger settlements now produce meaningfully larger map extents and denser road/parcel capacity, improving visual and housing-capacity separation between 1,000 and 10,000 populations.
 
 ## [1.0.0] - 2026-02-24
 
