@@ -93,6 +93,10 @@ let aiData: Map<number, AIPersonData> = new Map();
 let aiRels: Map<string, string> = new Map();
 let aiController: AbortController | null = null;
 let aiDataFromCache = false;
+let personAddressIndex = new Map<
+  number,
+  { residential: string[]; work: string[] }
+>();
 
 function getApiKey(): string {
   return (
@@ -172,6 +176,9 @@ const townMapHoverEl = document.getElementById("townMapHover") as HTMLDivElement
 const townMapScaleEl = document.getElementById(
   "townMapScale",
 ) as HTMLSpanElement;
+const townMapTitleEl = document.getElementById(
+  "townMapTitle",
+) as HTMLHeadingElement;
 const mapZoomInBtn = document.getElementById("mapZoomIn") as HTMLButtonElement;
 const mapZoomOutBtn = document.getElementById(
   "mapZoomOut",
@@ -564,6 +571,9 @@ function showPersonDetail(personId: number) {
 
   const gayBadge = person.isGay ? ' <span class="badge-gay">🏳️‍🌈</span>' : "";
   const genderLabel = person.gender === "male" ? "Male" : "Female";
+  const addressInfo = personAddressIndex.get(person.id);
+  const residentialAddress = addressInfo?.residential[0] ?? "None";
+  const workAddress = addressInfo?.work[0] ?? "None";
 
   modal.innerHTML = `
     <div class="modal-header">
@@ -579,7 +589,9 @@ function showPersonDetail(personId: number) {
             <strong>Age:</strong> ${person.age} y.o.<br>
             <strong>Job:</strong> ${jobIcon} ${person.job || "None"}<br>
             <strong>Family:</strong> ${cthulhuData.lastNames[person.lastNameIdx]}<br>
-            <strong>Gender:</strong> ${genderLabel}${person.isGay ? " 🏳️\u200d🌈" : ""}
+            <strong>Gender:</strong> ${genderLabel}${person.isGay ? " 🏳️\u200d🌈" : ""}<br>
+            <strong>Residential:</strong> ${residentialAddress}<br>
+            <strong>Work:</strong> ${workAddress}
           </div>
           ${(() => {
             const ai = aiData.get(person.id);
@@ -669,6 +681,7 @@ async function doGenerate() {
   shufflePhotosWithSeed(currentSeed);
 
   try {
+    personAddressIndex = new Map();
     currentPopulation = await generatePopulation(
       totalPopulation,
       currentSeed,
@@ -711,6 +724,7 @@ async function doGenerate() {
     renderCategories();
     renderTownMapPrototype({
       svgEl: townMapSvgEl,
+      titleEl: townMapTitleEl,
       legendEl: townMapLegendEl,
       statsEl: townMapStatsEl,
       hoverEl: townMapHoverEl,
@@ -720,6 +734,9 @@ async function doGenerate() {
       people: currentPopulation.people,
       getPersonName,
       onPersonClick: openPersonFromMap,
+      onPersonAddressIndex: (index) => {
+        personAddressIndex = index;
+      },
     });
     updateCacheStatus();
   } catch (e) {

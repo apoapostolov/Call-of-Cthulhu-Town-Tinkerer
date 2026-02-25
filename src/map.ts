@@ -55,6 +55,7 @@ interface Building {
   districtName: string;
   kind: BuildingKind;
   descriptor: string;
+  center: Point;
   points: Point[];
   structurePoints: Point[];
   address: string;
@@ -63,6 +64,7 @@ interface Building {
 }
 
 interface MapModel {
+  townName: string;
   scale: SettlementScale;
   width: number;
   height: number;
@@ -82,6 +84,7 @@ interface ScaleConfig {
 
 interface RenderParams {
   svgEl: SVGSVGElement;
+  titleEl: HTMLElement;
   legendEl: HTMLElement;
   statsEl: HTMLElement;
   hoverEl: HTMLElement;
@@ -91,6 +94,9 @@ interface RenderParams {
   people: Person[];
   getPersonName: (p: Person) => string;
   onPersonClick: (personId: number) => void;
+  onPersonAddressIndex?: (
+    index: Map<number, { residential: string[]; work: string[] }>,
+  ) => void;
 }
 
 interface CameraState {
@@ -117,9 +123,42 @@ const DISTRICT_NAME_PREFIXES = [
   "River",
   "Market",
   "Foundry",
-  "Miskatonic",
+  "Merrimack",
   "Lantern",
   "Union",
+  "Federal",
+  "Cathedral",
+  "Bridge",
+  "Wharf",
+  "Depot",
+  "Chapel",
+  "Rail",
+  "Telegraph",
+  "Canal",
+  "Granite",
+  "Beacon",
+  "Summit",
+  "Ash",
+  "Cedar",
+  "Oak",
+  "Pine",
+  "Maple",
+  "Willow",
+  "Pearl",
+  "Liberty",
+  "Prospect",
+  "College",
+  "Station",
+  "Mason",
+  "Dock",
+  "Carver",
+  "Lowell",
+  "Concord",
+  "Lexington",
+  "Briar",
+  "Fairview",
+  "Blackwater",
+  "Holloway",
 ];
 
 const DISTRICT_NAME_CORES = [
@@ -135,6 +174,30 @@ const DISTRICT_NAME_CORES = [
   "Common",
   "District",
   "Ward",
+  "Parade",
+  "Crescent",
+  "Close",
+  "Gardens",
+  "Market",
+  "Landing",
+  "Reach",
+  "View",
+  "Court",
+  "Place",
+  "Grove",
+  "Vale",
+  "Fields",
+  "Steps",
+  "Arc",
+  "Ring",
+  "Mews",
+  "Row",
+  "Parish",
+  "Quarter",
+  "Heath",
+  "Cross",
+  "Walk",
+  "Square",
 ];
 
 function buildDistrictNameBank(): string[] {
@@ -268,7 +331,58 @@ function buildStreetRootBank(): string[] {
 
   const variants: string[] = [];
   const seen = new Set<string>();
-  const affixes = ["Old", "New", "North", "South", "East", "West", "Upper", "Lower"];
+  const prefixAffixes = [
+    "Old",
+    "New",
+    "North",
+    "South",
+    "East",
+    "West",
+    "Upper",
+    "Lower",
+    "Grand",
+    "Little",
+    "High",
+    "Low",
+    "Upper East",
+    "Upper West",
+    "Lower East",
+    "Lower West",
+    "Inner",
+    "Outer",
+    "Harbor",
+    "River",
+    "Market",
+    "Foundry",
+    "Station",
+    "Wharf",
+  ];
+  const suffixAffixes = [
+    "Old",
+    "New",
+    "North",
+    "South",
+    "East",
+    "West",
+    "Upper",
+    "Lower",
+    "Heights",
+    "Mews",
+    "Parade",
+    "Cross",
+    "Landing",
+    "End",
+    "Reach",
+    "View",
+    "Rise",
+    "Close",
+    "Grove",
+    "Green",
+    "Terrace",
+    "Fields",
+    "Vale",
+    "Corner",
+  ];
 
   const add = (value: string) => {
     const v = value.trim();
@@ -279,8 +393,10 @@ function buildStreetRootBank(): string[] {
 
   for (const root of baseRoots) add(root);
   for (const root of baseRoots) {
-    for (const a of affixes) {
+    for (const a of prefixAffixes) {
       add(`${a} ${root}`);
+    }
+    for (const a of suffixAffixes) {
       add(`${root} ${a}`);
     }
   }
@@ -288,6 +404,181 @@ function buildStreetRootBank(): string[] {
 }
 
 const STREET_ROOT_BANK = buildStreetRootBank();
+const STREET_TYPE_VERTICAL = ["St", "Rd", "Ln", "Way", "Pl", "Ct", "Row", "Passage"];
+const STREET_TYPE_HORIZONTAL = ["Ave", "Terrace", "Drive", "Walk", "Parade", "Square", "Hill", "Place"];
+
+const TOWN_NAME_LEAD_BASE = [
+  "Pine",
+  "Cedar",
+  "Oak",
+  "Willow",
+  "Ash",
+  "Maple",
+  "Granite",
+  "Silver",
+  "Iron",
+  "Stone",
+  "River",
+  "Harbor",
+  "Fog",
+  "Morrow",
+  "Raven",
+  "Crow",
+  "Moon",
+  "Star",
+  "Dusk",
+  "North",
+  "South",
+  "East",
+  "West",
+  "High",
+  "Low",
+];
+const TOWN_NAME_LEAD_TAIL = [
+  "ford",
+  "gate",
+  "view",
+  "watch",
+  "haven",
+  "crest",
+  "field",
+  "wick",
+  "brook",
+  "cross",
+];
+
+const TOWN_NAME_CORE_BASE = [
+  "Mill",
+  "Bridge",
+  "Hollow",
+  "Grove",
+  "Ridge",
+  "Point",
+  "Vale",
+  "Creek",
+  "Hill",
+  "Heath",
+  "Bluff",
+  "Marsh",
+  "Meadow",
+  "Quarry",
+  "Beacon",
+  "Wharf",
+  "Rail",
+  "Foundry",
+  "Market",
+  "Lantern",
+  "Chapel",
+  "Union",
+  "Prospect",
+  "Liberty",
+  "Summit",
+];
+const TOWN_NAME_CORE_TAIL = [
+  "ton",
+  "bury",
+  "mouth",
+  "ridge",
+  "dale",
+  "stead",
+  "port",
+  "point",
+  "mont",
+  "ford",
+];
+
+const TOWN_NAME_SUFFIX_A = [
+  "Landing",
+  "Heights",
+  "Harbor",
+  "Falls",
+  "Crossing",
+  "Junction",
+  "Point",
+  "Terrace",
+  "Common",
+  "Square",
+  "Crescent",
+  "Yard",
+  "Quarter",
+  "Vale",
+  "Reach",
+  "Glen",
+  "Parish",
+  "Ridge",
+  "Basin",
+  "Bluffs",
+];
+const TOWN_NAME_SUFFIX_B = [
+  "Borough",
+  "Township",
+  "Village",
+  "Ward",
+  "District",
+  "Parade",
+  "Annex",
+  "Commons",
+  "Harborfront",
+  "Riverside",
+  "Uplands",
+  "Lowlands",
+  "Old Town",
+  "New Town",
+  "Heath",
+  "Downs",
+  "Moor",
+  "Fen",
+  "Estuary",
+  "Head",
+];
+
+function buildTownNameElementBank(base: string[], tail: string[]): string[] {
+  const out: string[] = [];
+  for (const b of base) {
+    for (const t of tail) out.push(`${b}${t}`);
+  }
+  return out;
+}
+
+function buildTownSuffixBank(a: string[], b: string[]): string[] {
+  const out: string[] = [];
+  for (const x of a) {
+    for (const y of b) out.push(`${x} ${y}`);
+  }
+  return out;
+}
+
+const TOWN_NAME_ELEMENT_A = buildTownNameElementBank(
+  TOWN_NAME_LEAD_BASE,
+  TOWN_NAME_LEAD_TAIL,
+);
+const TOWN_NAME_ELEMENT_B = buildTownNameElementBank(
+  TOWN_NAME_CORE_BASE,
+  TOWN_NAME_CORE_TAIL,
+);
+const TOWN_NAME_ELEMENT_C = buildTownSuffixBank(
+  TOWN_NAME_SUFFIX_A,
+  TOWN_NAME_SUFFIX_B,
+);
+
+function generateSettlementName(scale: SettlementScale, rng: () => number): string {
+  const partA = TOWN_NAME_ELEMENT_A[Math.floor(rng() * TOWN_NAME_ELEMENT_A.length)];
+  const partB = TOWN_NAME_ELEMENT_B[Math.floor(rng() * TOWN_NAME_ELEMENT_B.length)];
+  const partC = TOWN_NAME_ELEMENT_C[Math.floor(rng() * TOWN_NAME_ELEMENT_C.length)];
+
+  const partsTarget =
+    scale === "Hamlet"
+      ? (rng() < 0.7 ? 1 : 2)
+      : scale === "Town"
+        ? (rng() < 0.5 ? 2 : 1)
+        : scale === "City"
+          ? (rng() < 0.7 ? 2 : 3)
+          : (rng() < 0.75 ? 3 : 2);
+
+  if (partsTarget === 1) return partA;
+  if (partsTarget === 2) return `${partA} ${partB}`;
+  return `${partA} ${partB} ${partC}`;
+}
 
 function settlementScale(population: number): SettlementScale {
   if (population < 2_000) return "Hamlet";
@@ -345,17 +636,6 @@ function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
 
-function pickIds(rng: () => number, people: Person[], count: number): number[] {
-  if (people.length === 0 || count <= 0) return [];
-  const set = new Set<number>();
-  const target = Math.min(count, people.length);
-  while (set.size < target) {
-    const idx = Math.floor(rng() * people.length);
-    set.add(people[idx].id);
-  }
-  return Array.from(set);
-}
-
 function buildDescriptorBank(nouns: string[]): string[] {
   const out: string[] = [];
   for (const adj of DESCRIPTOR_ADJECTIVES_1920) {
@@ -377,38 +657,45 @@ function pickDescriptor(kind: BuildingKind, rng: () => number): string {
   return bank[Math.floor(rng() * bank.length)];
 }
 
-function personStatusScore(person: Person): number {
+function estimateCreditRating(person: Person): number {
   const job = (person.job ?? "").toLowerCase();
-  let score = 44;
-  if (!job || job === "no profession") score -= 24;
-  if (job.includes("child") || job.includes("student")) score -= 9;
+  let credit = 28;
+  if (!job || job === "no profession") credit = 8;
+  if (job.includes("child") || job.includes("student")) credit = 6;
+  if (job.includes("retiree")) credit = 22;
+
   if (
     job.includes("doctor") ||
     job.includes("professor") ||
     job.includes("lawyer") ||
     job.includes("bank") ||
     job.includes("judge") ||
-    job.includes("owner")
+    job.includes("owner") ||
+    job.includes("politician")
   ) {
-    score += 24;
+    credit = 74;
   }
   if (
-    job.includes("manager") ||
-    job.includes("editor") ||
-    job.includes("merchant") ||
-    job.includes("accountant") ||
-    job.includes("architect")
+    credit < 70 &&
+    (job.includes("manager") ||
+      job.includes("editor") ||
+      job.includes("merchant") ||
+      job.includes("accountant") ||
+      job.includes("architect") ||
+      job.includes("engineer"))
   ) {
-    score += 15;
+    credit = Math.max(credit, 56);
   }
   if (
-    job.includes("clerk") ||
-    job.includes("teacher") ||
-    job.includes("nurse") ||
-    job.includes("police") ||
-    job.includes("post")
+    credit < 56 &&
+    (job.includes("clerk") ||
+      job.includes("teacher") ||
+      job.includes("nurse") ||
+      job.includes("police") ||
+      job.includes("post") ||
+      job.includes("journalist"))
   ) {
-    score += 7;
+    credit = Math.max(credit, 38);
   }
   if (
     job.includes("labor") ||
@@ -418,47 +705,196 @@ function personStatusScore(person: Person): number {
     job.includes("laundry") ||
     job.includes("porter")
   ) {
-    score -= 10;
+    credit = Math.min(credit, 18);
   }
-  if (job.includes("unemployed") || job.includes("beggar")) score -= 18;
-  if (person.age >= 55) score += 2;
-  return clamp(score, 0, 100);
+  if (job.includes("unemployed") || job.includes("beggar")) credit = Math.min(credit, 4);
+
+  const jitter = (((person.id * 2654435761) >>> 0) % 11) - 5;
+  credit += jitter;
+  if (person.age >= 60) credit += 2;
+  return clamp(credit, 0, 99);
 }
 
-function statusLabelFromScore(score: number): string {
-  if (score < 16) return STATUS_LABELS[0];
-  if (score < 28) return STATUS_LABELS[1];
-  if (score < 40) return STATUS_LABELS[2];
-  if (score < 52) return STATUS_LABELS[3];
-  if (score < 64) return STATUS_LABELS[4];
-  if (score < 76) return STATUS_LABELS[5];
-  if (score < 88) return STATUS_LABELS[6];
-  return STATUS_LABELS[7];
+function creditToClassScore(credit: number): number {
+  if (credit <= 0) return 8;
+  if (credit <= 9) return 22;
+  if (credit <= 19) return 34;
+  if (credit <= 34) return 46;
+  if (credit <= 49) return 56;
+  if (credit <= 69) return 70;
+  if (credit <= 89) return 82;
+  return 94;
+}
+
+function scoreToClassIndex(score: number, scale: SettlementScale): number {
+  const cap = scale === "Hamlet" || scale === "Town" ? 6 : 7;
+  if (score < 16) return 0;
+  if (score < 28) return 1;
+  if (score < 40) return 2;
+  if (score < 52) return 3;
+  if (score < 64) return 4;
+  if (score < 76) return 5;
+  if (score < 88) return 6;
+  return cap;
+}
+
+function classIndexToScore(index: number): number {
+  return [8, 22, 34, 46, 58, 70, 82, 94][clamp(index, 0, 7)];
+}
+
+function statusLabelFromScore(score: number, scale: SettlementScale): string {
+  return STATUS_LABELS[scoreToClassIndex(score, scale)];
 }
 
 function parcelSocialClass(
   building: Building,
+  model: MapModel,
+  districtByName: Map<string, District>,
   peopleById: Map<number, Person>,
 ): string {
-  const peopleScores = [...building.residents, ...building.workers]
+  const cityCenter = { x: model.width * 0.5, y: model.height * 0.5 };
+  const maxDist = Math.hypot(model.width, model.height) * 0.52;
+  const centerDist = Math.hypot(building.center.x - cityCenter.x, building.center.y - cityCenter.y);
+  const centerIndex = 1 - clamp(centerDist / maxDist, 0, 1);
+
+  const district = districtByName.get(building.districtName);
+  const districtPremium =
+    district?.kind === "Civic Hill"
+      ? 18
+      : district?.kind === "Market Ward"
+        ? 16
+        : district?.kind === "Garden Ward"
+          ? 12
+          : district?.kind === "Old Quarter"
+            ? 4
+            : district?.kind === "Harbor Side"
+              ? -6
+              : district?.kind === "Factory Belt"
+                ? -14
+                : 0;
+
+  const affluentAnchors = model.districts
+    .filter((d) => d.kind === "Civic Hill" || d.kind === "Market Ward" || d.kind === "Garden Ward")
+    .map((d) => d.center);
+  const industrialAnchors = model.districts
+    .filter((d) => d.kind === "Factory Belt" || d.kind === "Harbor Side")
+    .map((d) => d.center);
+
+  const minDist = (anchors: Point[]): number => {
+    if (!anchors.length) return maxDist;
+    let best = Number.POSITIVE_INFINITY;
+    for (const a of anchors) {
+      best = Math.min(best, Math.hypot(building.center.x - a.x, building.center.y - a.y));
+    }
+    return best;
+  };
+
+  const affluentNear = 1 - clamp(minDist(affluentAnchors) / maxDist, 0, 1);
+  const industrialNear = 1 - clamp(minDist(industrialAnchors) / maxDist, 0, 1);
+
+  const kindBase =
+    building.kind === "Commercial"
+      ? 62
+      : building.kind === "Civic"
+        ? 59
+        : building.kind === "Residential"
+          ? 46
+          : building.kind === "Mixed"
+            ? 52
+            : 30;
+
+  const sizeBounds = polygonBounds(building.structurePoints);
+  const footprintArea = (sizeBounds.right - sizeBounds.left) * (sizeBounds.bottom - sizeBounds.top);
+  const sizeBonus = clamp((footprintArea - 65) * 0.06, -6, 10);
+
+  let baseScore =
+    kindBase +
+    centerIndex * 22 +
+    districtPremium +
+    affluentNear * 14 -
+    industrialNear * 15 +
+    sizeBonus;
+
+  // Scale-sensitive realism:
+  // - Small settlements rarely sustain ultra-elite parcels.
+  // - Big cities generate deeper low-end tails near industrial belts and far edge.
+  if (model.scale === "Hamlet") {
+    baseScore += centerIndex * 4 - industrialNear * 6;
+  } else if (model.scale === "Town") {
+    baseScore += centerIndex * 3 - industrialNear * 7;
+  } else if (model.scale === "City") {
+    baseScore += centerIndex * 2 - industrialNear * 10;
+  } else {
+    baseScore += centerIndex * 1 - industrialNear * 12;
+  }
+
+  const outerEdge = clamp(1 - centerIndex, 0, 1);
+  if (model.scale === "City" || model.scale === "Metropolis") {
+    // Persistent lower-income zones in industrial/outskirts.
+    const industrialPoverty = industrialNear * 12;
+    const fringePoverty = outerEdge > 0.7 ? (outerEdge - 0.7) * 28 : 0;
+    baseScore -= industrialPoverty + fringePoverty;
+  } else {
+    // Smaller towns still have poorer quarters, but less extreme.
+    baseScore -= industrialNear * 5 + (outerEdge > 0.75 ? (outerEdge - 0.75) * 14 : 0);
+  }
+
+  // Mild heterogeneity to avoid mode collapse into one middle band.
+  const localVariance = (Math.sin(building.center.x * 0.013 + building.center.y * 0.017) + 1) * 2.5;
+  baseScore += localVariance - 2.5;
+
+  baseScore = clamp(baseScore, 6, 96);
+
+  const residentCredits = [...building.residents, ...building.workers]
     .map((id) => peopleById.get(id))
     .filter((p): p is Person => Boolean(p))
-    .map(personStatusScore);
-  const avgPeople = peopleScores.length
-    ? peopleScores.reduce((a, b) => a + b, 0) / peopleScores.length
-    : 44;
+    .map(estimateCreditRating);
 
-  let baseByKind = 46;
-  if (building.kind === "Commercial") baseByKind = 58;
-  else if (building.kind === "Civic") baseByKind = 55;
-  else if (building.kind === "Residential") baseByKind = 42;
-  else if (building.kind === "Industrial") baseByKind = 30;
-  else if (building.kind === "Mixed") baseByKind = 50;
+  // Hard cap for small settlements: affluent max.
+  if ((model.scale === "Hamlet" || model.scale === "Town") && baseScore > 87.5) {
+    baseScore = 87.5;
+  }
 
-  const workersPressure = building.workers.length > building.residents.length * 2 ? -4 : 0;
-  const residentsLift = building.residents.length >= 4 ? 3 : 0;
-  const score = clamp(baseByKind * 0.45 + avgPeople * 0.55 + workersPressure + residentsLift, 0, 100);
-  return statusLabelFromScore(score);
+  // Luxury in big settlements requires converging high-value factors.
+  const luxuryEligible =
+    (model.scale === "City" || model.scale === "Metropolis") &&
+    centerIndex > 0.66 &&
+    affluentNear > 0.58 &&
+    industrialNear < 0.28 &&
+    (building.kind === "Commercial" || building.kind === "Civic" || building.kind === "Mixed");
+  if (!luxuryEligible && baseScore >= 88) baseScore = 87.8;
+
+  // Occupant override by Credit Rating (CoC style):
+  // 0 penniless, 1-9 poor, 10-49 average, 50-89 wealthy, 90+ rich/super-rich.
+  // Occupants only upgrade when they significantly exceed parcel baseline.
+  if (residentCredits.length) {
+    const avgCredit = residentCredits.reduce((a, b) => a + b, 0) / residentCredits.length;
+    const maxCredit = Math.max(...residentCredits);
+    const baselineClassIdx = scoreToClassIndex(baseScore, model.scale);
+    const baselineScore = classIndexToScore(baselineClassIdx);
+    const creditScore = creditToClassScore(maxCredit);
+    const creditDelta = creditScore - baselineScore;
+
+    if (maxCredit >= 60 && creditDelta >= 12) {
+      let stepUp = 1;
+      if (maxCredit >= 90 && creditDelta >= 22 && avgCredit >= 58) stepUp = 2;
+
+      const chance =
+        0.18 +
+        clamp((maxCredit - 60) / 120, 0, 0.28) +
+        clamp((creditDelta - 12) / 140, 0, 0.22);
+      const deterministicRoll =
+        ((building.id * 1103515245 + 12345) >>> 0) / 0xffffffff;
+
+      if (deterministicRoll < chance) {
+        const maxIdx = model.scale === "Hamlet" || model.scale === "Town" ? 6 : 7;
+        const upgradedIdx = clamp(baselineClassIdx + stepUp, 0, maxIdx);
+        baseScore = classIndexToScore(upgradedIdx);
+      }
+    }
+  }
+
+  return statusLabelFromScore(baseScore, model.scale);
 }
 
 function districtByPoint(
@@ -525,7 +961,21 @@ function randomBuildingKind(
 
 function makeRoadName(index: number, vertical: boolean): string {
   const base = STREET_ROOT_BANK[index % STREET_ROOT_BANK.length];
-  return vertical ? `${base} St` : `${base} Ave`;
+  const type = vertical
+    ? STREET_TYPE_VERTICAL[index % STREET_TYPE_VERTICAL.length]
+    : STREET_TYPE_HORIZONTAL[index % STREET_TYPE_HORIZONTAL.length];
+  return `${base} ${type}`;
+}
+
+function pickNameFromBank(
+  bank: string[],
+  index: number,
+  offset: number,
+  stride: number,
+): string {
+  if (bank.length === 0) return `Unnamed ${index + 1}`;
+  const idx = (offset + index * stride) % bank.length;
+  return bank[(idx + bank.length) % bank.length];
 }
 
 function roadTier(index: number, total: number): RoadTier {
@@ -586,9 +1036,13 @@ function addressForLot(
   lotY: number,
   verticalIndex: number,
   horizontalIndex: number,
+  streetOffset: number,
 ): string {
   const number = Math.floor(lotX + lotY) * 2 + 10;
-  const street = makeRoadName(verticalIndex + horizontalIndex, true);
+  const street = makeRoadName(
+    verticalIndex * 7 + horizontalIndex * 13 + streetOffset,
+    true,
+  );
   return `${number} ${street}`;
 }
 
@@ -975,6 +1429,160 @@ function minDistanceToPoints(p: Point, cloud: Point[]): number {
   return best;
 }
 
+function residentialCapacity(building: Building): number {
+  const b = polygonBounds(building.structurePoints);
+  const area = (b.right - b.left) * (b.bottom - b.top);
+  if (building.kind === "Residential") return clamp(Math.floor(area / 28), 2, 10);
+  if (building.kind === "Mixed") return clamp(Math.floor(area / 36), 1, 6);
+  if (building.kind === "Commercial") return clamp(Math.floor(area / 80), 0, 2);
+  return 0;
+}
+
+function workerCapacity(building: Building): number {
+  const b = polygonBounds(building.structurePoints);
+  const area = (b.right - b.left) * (b.bottom - b.top);
+  if (building.kind === "Industrial") return clamp(Math.floor(area / 12), 6, 42);
+  if (building.kind === "Commercial") return clamp(Math.floor(area / 18), 3, 28);
+  if (building.kind === "Civic") return clamp(Math.floor(area / 20), 2, 20);
+  if (building.kind === "Mixed") return clamp(Math.floor(area / 22), 2, 16);
+  return 0;
+}
+
+function hasPaidProfession(person: Person): boolean {
+  const job = (person.job ?? "").toLowerCase();
+  if (!job) return false;
+  return !(
+    job === "no profession" ||
+    job.includes("housewife") ||
+    job.includes("child") ||
+    job.includes("student") ||
+    job.includes("retiree") ||
+    job.includes("unemployed")
+  );
+}
+
+function assignParcelOccupancy(
+  buildings: Building[],
+  people: Person[],
+  scale: SettlementScale,
+  rng: () => number,
+): void {
+  for (const b of buildings) {
+    b.residents = [];
+    b.workers = [];
+  }
+
+  const homeCandidates = buildings.filter(
+    (b) => b.kind === "Residential" || b.kind === "Mixed" || b.kind === "Commercial",
+  );
+  const homePool = homeCandidates.length > 0 ? homeCandidates : buildings;
+  const homeCap = new Map<number, number>(
+    homePool.map((b) => [b.id, residentialCapacity(b)]),
+  );
+  const familyGroups = new Map<number, Person[]>();
+  for (const p of people) {
+    const key =
+      p.parentIds.length > 0
+        ? Math.min(...p.parentIds)
+        : p.spouseId !== null
+          ? Math.min(p.id, p.spouseId)
+          : p.id;
+    const arr = familyGroups.get(key) ?? [];
+    arr.push(p);
+    familyGroups.set(key, arr);
+  }
+
+  const groups = [...familyGroups.values()].sort((a, b) => b.length - a.length);
+  for (const group of groups) {
+    const options = homePool.filter((b) => (homeCap.get(b.id) ?? 0) >= Math.min(1, group.length));
+    const picks = options.length > 0 ? options : homePool;
+    const anchor = picks[Math.floor(rng() * picks.length)];
+    for (const person of group) {
+      let home = anchor;
+      if ((homeCap.get(home.id) ?? 0) <= 0) {
+        home =
+          homePool.find((b) => (homeCap.get(b.id) ?? 0) > 0) ??
+          homePool[Math.floor(rng() * homePool.length)];
+      }
+      home.residents.push(person.id);
+      homeCap.set(home.id, Math.max(0, (homeCap.get(home.id) ?? 0) - 1));
+    }
+  }
+
+  // Safety: every person gets at least one residential address.
+  const hasHome = new Set<number>();
+  for (const b of buildings) for (const id of b.residents) hasHome.add(id);
+  for (const p of people) {
+    if (hasHome.has(p.id)) continue;
+    const fallback =
+      homePool.find((b) => (homeCap.get(b.id) ?? 0) > 0) ??
+      homePool[Math.floor(rng() * homePool.length)];
+    fallback.residents.push(p.id);
+    homeCap.set(fallback.id, Math.max(0, (homeCap.get(fallback.id) ?? 0) - 1));
+  }
+
+  const workCandidates = buildings.filter(
+    (b) =>
+      b.kind === "Industrial" ||
+      b.kind === "Commercial" ||
+      b.kind === "Civic" ||
+      b.kind === "Mixed",
+  );
+  const workPool = workCandidates.length > 0 ? workCandidates : buildings;
+  const workCap = new Map<number, number>(
+    workPool.map((b) => [b.id, workerCapacity(b)]),
+  );
+
+  const unemploymentRate =
+    scale === "Hamlet"
+      ? 0.1
+      : scale === "Town"
+        ? 0.08
+        : scale === "City"
+          ? 0.11
+          : 0.13;
+  const marriedFemaleWorkChance =
+    scale === "Hamlet"
+      ? 0.14
+      : scale === "Town"
+        ? 0.18
+        : scale === "City"
+          ? 0.24
+          : 0.3;
+
+  const pickWorkBuilding = (person: Person): Building | null => {
+    const job = (person.job ?? "").toLowerCase();
+    let preferredKinds: BuildingKind[] = ["Commercial", "Mixed", "Civic", "Industrial"];
+    if (job.includes("factory") || job.includes("dock") || job.includes("miner") || job.includes("rail")) {
+      preferredKinds = ["Industrial", "Mixed", "Commercial", "Civic"];
+    } else if (job.includes("teacher") || job.includes("police") || job.includes("nurse") || job.includes("clerk")) {
+      preferredKinds = ["Civic", "Commercial", "Mixed", "Industrial"];
+    } else if (job.includes("merchant") || job.includes("bank") || job.includes("lawyer") || job.includes("shop")) {
+      preferredKinds = ["Commercial", "Civic", "Mixed", "Industrial"];
+    }
+    for (const kind of preferredKinds) {
+      const filtered = workPool.filter((b) => b.kind === kind && (workCap.get(b.id) ?? 0) > 0);
+      if (filtered.length > 0) return filtered[Math.floor(rng() * filtered.length)];
+    }
+    const any = workPool.filter((b) => (workCap.get(b.id) ?? 0) > 0);
+    return any.length > 0 ? any[Math.floor(rng() * any.length)] : null;
+  };
+
+  for (const person of people) {
+    if (!hasPaidProfession(person)) continue;
+    const job = (person.job ?? "").toLowerCase();
+    if (person.gender === "female" && person.spouseId !== null && !job.includes("doctor") && !job.includes("teacher") && !job.includes("nurse")) {
+      if (rng() > marriedFemaleWorkChance) continue;
+    }
+    if (rng() < unemploymentRate) continue;
+
+    const workBuilding = pickWorkBuilding(person);
+    if (!workBuilding) continue;
+    workBuilding.workers.push(person.id);
+    workCap.set(workBuilding.id, Math.max(0, (workCap.get(workBuilding.id) ?? 0) - 1));
+  }
+}
+
 function createMapModel(
   population: number,
   seed: number,
@@ -983,12 +1591,18 @@ function createMapModel(
   const scale = settlementScale(population);
   const config = scaleConfig(scale);
   const rng = mulberry32(seed ^ 0x4d4150);
+  const townName = generateSettlementName(scale, rng);
 
   const margin = 58;
   const center: Point = {
     x: config.width * (0.5 + (rng() - 0.5) * 0.08),
     y: config.height * (0.5 + (rng() - 0.5) * 0.08),
   };
+  const districtNameOffset = Math.floor(rng() * neighborhoodNames.length);
+  const districtNameStride = 5 + Math.floor(rng() * 23);
+  const roadNameOffset = Math.floor(rng() * STREET_ROOT_BANK.length);
+  const roadNameStride = 3 + Math.floor(rng() * 17);
+  const addressStreetOffset = Math.floor(rng() * STREET_ROOT_BANK.length);
 
   const xRoads = makeRoadPositions(
     config.verticalRoads,
@@ -1100,7 +1714,12 @@ function createMapModel(
     const baseRadius = Math.min(config.width, config.height) * (0.18 + rng() * 0.1);
     districts.push({
       id: i,
-      name: neighborhoodNames[i % neighborhoodNames.length],
+      name: pickNameFromBank(
+        neighborhoodNames,
+        i,
+        districtNameOffset,
+        districtNameStride,
+      ),
       kind: d.kind,
       hue: districtHue[d.kind],
       center: d.center,
@@ -1120,7 +1739,7 @@ function createMapModel(
   for (let i = 0; i < nodes.length; i++) {
     roads.push({
       id: roadId++,
-      name: makeRoadName(i, true),
+      name: makeRoadName(roadNameOffset + i * roadNameStride, true),
       path: pointsToPath(nodes[i]),
       tier: roadTier(i, nodes.length),
     });
@@ -1130,7 +1749,7 @@ function createMapModel(
     for (let xi = 0; xi < nodes.length; xi++) pts.push(nodes[xi][i]);
     roads.push({
       id: roadId++,
-      name: makeRoadName(i, false),
+      name: makeRoadName(roadNameOffset + i * (roadNameStride + 2), false),
       path: pointsToPath(pts),
       tier: roadTier(i, nodes[0].length),
     });
@@ -1260,29 +1879,13 @@ function createMapModel(
             kind = "Residential";
           }
 
-          const residentsTarget =
-            kind === "Residential"
-              ? (normCenterDist > 0.24 ? 2 : 1) + Math.floor(rng() * 4)
-              : kind === "Mixed"
-                ? 1 + Math.floor(rng() * 3)
-                : Math.floor(rng() * 2);
-          const workersTarget =
-            kind === "Industrial"
-              ? (toFactory < cornerBand ? 5 : 3) + Math.floor(rng() * 9)
-              : kind === "Commercial"
-                ? (normCenterDist < 0.12 ? 4 : 2) + Math.floor(rng() * 8)
-                : kind === "Civic"
-                  ? (normCenterDist < 0.14 ? 3 : 2) + Math.floor(rng() * 5)
-                  : kind === "Mixed"
-                    ? (normCenterDist < 0.16 ? 2 : 1) + Math.floor(rng() * 4)
-                    : Math.floor(rng() * 2);
-
           buildings.push({
             id: buildingId++,
             districtId: district.id,
             districtName: district.name,
             kind,
             descriptor: pickDescriptor(kind, rng),
+            center: polygonCentroid(structure),
             points: zone,
             structurePoints: structure,
             address: addressForLot(
@@ -1290,9 +1893,10 @@ function createMapModel(
               yi * 12 + rng() * 4,
               xi,
               yi,
+              addressStreetOffset,
             ),
-            residents: pickIds(rng, people, residentsTarget),
-            workers: pickIds(rng, people, workersTarget),
+            residents: [],
+            workers: [],
           });
         }
       }
@@ -1329,7 +1933,10 @@ function createMapModel(
     district.center = polygonCentroid(district.points);
   }
 
+  assignParcelOccupancy(buildings, people, scale, rng);
+
   return {
+    townName,
     scale,
     width: config.width,
     height: config.height,
@@ -1554,6 +2161,7 @@ function roadLabel(svgEl: SVGSVGElement, road: Road): void {
 export function renderTownMapPrototype(params: RenderParams): void {
   const {
     svgEl,
+    titleEl,
     legendEl,
     statsEl,
     hoverEl,
@@ -1563,9 +2171,11 @@ export function renderTownMapPrototype(params: RenderParams): void {
     people,
     getPersonName,
     onPersonClick,
+    onPersonAddressIndex,
   } = params;
 
   const model = createMapModel(population, seed, people);
+  titleEl.textContent = `🗺️ ${model.townName}`;
   scaleEl.textContent = model.scale;
   ensureCamera(svgEl, model.width, model.height);
 
@@ -1693,6 +2303,31 @@ export function renderTownMapPrototype(params: RenderParams): void {
   const buildingById = new Map<number, Building>(
     model.buildings.map((b) => [b.id, b]),
   );
+  const personAddressIndex = new Map<
+    number,
+    { residential: string[]; work: string[] }
+  >();
+  const upsertAddress = (
+    personId: number,
+    type: "residential" | "work",
+    address: string,
+  ) => {
+    const existing = personAddressIndex.get(personId) ?? {
+      residential: [],
+      work: [],
+    };
+    const list = existing[type];
+    if (!list.includes(address)) list.push(address);
+    personAddressIndex.set(personId, existing);
+  };
+  for (const b of model.buildings) {
+    for (const rid of b.residents) upsertAddress(rid, "residential", b.address);
+    for (const wid of b.workers) upsertAddress(wid, "work", b.address);
+  }
+  onPersonAddressIndex?.(personAddressIndex);
+  const districtByName = new Map<string, District>(
+    model.districts.map((d) => [d.name, d]),
+  );
 
   legendEl.innerHTML = model.districts
     .map(
@@ -1725,7 +2360,7 @@ export function renderTownMapPrototype(params: RenderParams): void {
   hoverEl.innerHTML = defaultHoverHtml;
 
   const renderBuildingPanel = (building: Building) => {
-    const socialClass = parcelSocialClass(building, peopleById);
+    const socialClass = parcelSocialClass(building, model, districtByName, peopleById);
     const kindLabel = building.kind === "Mixed" ? "Social" : building.kind;
     hoverEl.innerHTML = `
       <h4>${building.address}</h4>

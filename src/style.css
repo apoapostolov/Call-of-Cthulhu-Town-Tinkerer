@@ -152,7 +152,7 @@ h1 {
 }
 .town-map-frame {
   fill: none;
-  stroke: rgba(151, 55, 43, 0.78);
+  stroke: rgba(128, 128, 128, 0.8);
   stroke-width: 2;
   stroke-dasharray: 2.4 1.3;
   pointer-events: none;

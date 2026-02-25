@@ -19,6 +19,13 @@ All notable changes to this project will be documented in this file.
 - Parcel-zone overlays are now effectively invisible by default, inner building footprints are enlarged by about 20%, and economic zoning pressure is stronger (core commercial/civic jobs, outer residential, corner industrial/poor-adjacent clustering).
 - Parcel Inspector now includes a 1920s building descriptor per parcel type, a computed social-class label (Luxury→Slums) based on building function and occupants, type-specific building color updates (Civic/Commercial/Residential/Social/Industrial), and it suppresses empty Residents/Workers sections entirely.
 - Fixed road naming so streets no longer collapse to a single repeated name, moved `Class` into the main Parcel Inspector meta row with bold label, and expanded district/street name generation variety by more than 3x via combinatorial name banks.
+- Expanded city naming enums again to 3x-scale sets (district prefixes/cores and street naming affix/type pools) and replaced the class model with urban-value scoring (building type + center/ring + affluent/industrial proximity), where occupant credit only strongly upgrades class when materially above the parcel baseline.
+- Tuned class realism by settlement scale: hamlets/towns are capped at Affluent, Luxury requires strict eligibility in large cities (center + affluent adjacency + low industrial pressure), and City/Metropolis now form stronger poor belts near industrial zones and outer fringe.
+- Reworked class override logic around Call of Cthulhu-style Credit Rating bands so resident wealth can upgrade parcel class only when significantly above the parcel baseline, preserving realistic built-environment constraints while allowing rare high-credit uplift events.
+- Fixed naming randomness regressions by adding seeded offset/stride selection for district and street names per generated map, and added Residential/Work parcel addresses to the Character Modal info column.
+- Fixed occupancy realism: every villager now receives a residential address, workforce assignment follows 1920s-style participation rules (married women usually non-working unless in selected professions), and only a scale-appropriate unemployment/joblessness share remains without work addresses.
+- Added a settlement-name generator for Hamlet→Metropolis using 1–3 element names from large American/Lovecraftian-style non-canonical banks (100+ options per element bank), and replaced the map header label with the generated town name.
+- Removed explicit Lovecraft place-name elements from district/settlement naming pools and changed the map frame from red dotted styling to grey dotted styling.
 
 ## [1.0.0] - 2026-02-24
 
