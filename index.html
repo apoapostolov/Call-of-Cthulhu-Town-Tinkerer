@@ -51,6 +51,36 @@
         class="cults-container"
         style="display: none"
       ></div>
+      <section class="town-map-section">
+        <div class="town-map-header">
+          <div>
+            <h2>🗺️ Living Town Prototype</h2>
+            <p>
+              Seeded vector draft with archaic cartographic styling and modern
+              map interactions.
+            </p>
+          </div>
+          <span id="townMapScale" class="town-map-scale">Town</span>
+        </div>
+        <div class="town-map-shell">
+          <div class="town-map-canvas-wrap">
+            <svg id="townMapSvg" class="town-map-canvas"></svg>
+            <div class="town-map-controls">
+              <button id="mapZoomIn" title="Zoom in">＋</button>
+              <button id="mapZoomOut" title="Zoom out">－</button>
+              <button id="mapZoomReset" title="Reset view">⦿</button>
+            </div>
+          </div>
+          <aside class="town-map-sidepanel">
+            <h3>District Palette</h3>
+            <div id="townMapLegend" class="town-map-legend"></div>
+            <h3>Map Stats</h3>
+            <div id="townMapStats" class="town-map-stats"></div>
+            <h3>Parcel Inspector</h3>
+            <div id="townMapHover" class="town-map-hover"></div>
+          </aside>
+        </div>
+      </section>
       <div class="categories" id="categories"></div>
       <div class="summary" id="summary"></div>
     </div>

@@ -21,6 +21,10 @@ import {
   generatePopulation,
   mulberry32,
 } from "./logic.ts";
+import {
+  initTownMapControls,
+  renderTownMapPrototype,
+} from "./map.ts";
 import { GDRIVE_PHOTOS, gdUrl } from "./photos.ts";
 import "./style.css";
 
@@ -160,6 +164,24 @@ const aiProgressText = document.getElementById(
 ) as HTMLParagraphElement;
 const categoriesEl = document.getElementById("categories") as HTMLDivElement;
 const summaryEl = document.getElementById("summary") as HTMLDivElement;
+const townMapSvgEl = document.getElementById(
+  "townMapSvg",
+) as unknown as SVGSVGElement;
+const townMapLegendEl = document.getElementById(
+  "townMapLegend",
+) as HTMLDivElement;
+const townMapStatsEl = document.getElementById("townMapStats") as HTMLDivElement;
+const townMapHoverEl = document.getElementById("townMapHover") as HTMLDivElement;
+const townMapScaleEl = document.getElementById(
+  "townMapScale",
+) as HTMLSpanElement;
+const mapZoomInBtn = document.getElementById("mapZoomIn") as HTMLButtonElement;
+const mapZoomOutBtn = document.getElementById(
+  "mapZoomOut",
+) as HTMLButtonElement;
+const mapZoomResetBtn = document.getElementById(
+  "mapZoomReset",
+) as HTMLButtonElement;
 const generatingEl = document.getElementById("generating") as HTMLDivElement;
 const progressFill = document.getElementById("progressFill") as HTMLDivElement;
 const progressText = document.getElementById(
@@ -170,6 +192,8 @@ const modal = document.getElementById("modal") as HTMLDivElement;
 const createCultBtn = document.getElementById(
   "createCultBtn",
 ) as HTMLButtonElement;
+
+initTownMapControls(townMapSvgEl, mapZoomInBtn, mapZoomOutBtn, mapZoomResetBtn);
 
 /** Update the settlement-type word in the page title based on population. */
 function updateTitleWord(population: number): void {
@@ -330,6 +354,12 @@ function openModal(jobName: string) {
   navigationHistory = [{ type: "list", job: jobName }];
   modalOverlay.classList.add("active");
   renderJobList();
+}
+
+function openPersonFromMap(personId: number): void {
+  navigationHistory = [{ type: "detail", personId }];
+  modalOverlay.classList.add("active");
+  showPersonDetail(personId);
 }
 
 function closeModal() {
@@ -682,6 +712,18 @@ async function doGenerate() {
     }
 
     renderCategories();
+    renderTownMapPrototype({
+      svgEl: townMapSvgEl,
+      legendEl: townMapLegendEl,
+      statsEl: townMapStatsEl,
+      hoverEl: townMapHoverEl,
+      scaleEl: townMapScaleEl,
+      population: totalPopulation,
+      seed: currentSeed,
+      people: currentPopulation.people,
+      getPersonName,
+      onPersonClick: openPersonFromMap,
+    });
     updateCacheStatus();
   } catch (e) {
     console.error(e);
