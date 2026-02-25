@@ -181,8 +181,12 @@ const townMapSvgEl = document.getElementById(
 const townMapLegendEl = document.getElementById(
   "townMapLegend",
 ) as HTMLDivElement;
-const townMapStatsEl = document.getElementById("townMapStats") as HTMLDivElement;
-const townMapHoverEl = document.getElementById("townMapHover") as HTMLDivElement;
+const townMapStatsEl = document.getElementById(
+  "townMapStats",
+) as HTMLDivElement;
+const townMapHoverEl = document.getElementById(
+  "townMapHover",
+) as HTMLDivElement;
 const townMapScaleEl = document.getElementById(
   "townMapScale",
 ) as HTMLSpanElement;
