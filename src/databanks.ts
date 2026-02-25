@@ -527,6 +527,99 @@ export const TRAIT_BANK = buildTraitBank();
 export const NORMAL_SECRET_BANK = buildNormalSecretBank();
 export const SUPERNATURAL_SECRET_BANK = buildSupernaturalSecretBank();
 
+const INDUSTRIAL_FACILITY_STEMS = [
+  "Textile Mill",
+  "Foundry",
+  "Rail Freight Yard",
+  "Machine Works",
+  "Canning Plant",
+  "Packing House",
+  "Soap Works",
+  "Ship Chandlery",
+  "Coal Depot",
+  "Ice Works",
+  "Brickworks",
+  "Tannery",
+  "Printing Works",
+  "Warehouse",
+  "Timber Yard",
+  "Steam Laundry Plant",
+  "Boiler Works",
+  "Cable Works",
+  "Glassworks",
+  "Fish Processing Shed",
+];
+
+const INDUSTRIAL_FACILITY_MODIFIERS = [
+  "No. 1",
+  "No. 2",
+  "Annex",
+  "North Block",
+  "South Block",
+  "East Block",
+  "West Block",
+  "Company Works",
+];
+
+const SOCIAL_FACILITY_STEMS = [
+  "St. Matthew Church",
+  "St. Agnes Chapel",
+  "City Statehouse",
+  "County Courthouse",
+  "Municipal Hospital",
+  "Charity Hospital",
+  "Public Library",
+  "Town Newspaper Office",
+  "Telegraph Office",
+  "Union Hall",
+  "Cemetery Grounds",
+  "Mortuary Chapel",
+  "Public Schoolhouse",
+  "Girls Academy",
+  "Boys Grammar School",
+  "Railway Station Hall",
+  "Post Office",
+  "City Archive",
+  "Fire Brigade House",
+  "Police Precinct House",
+  "Masonic Lodge Hall",
+  "Veterans Hall",
+  "Public Bath House",
+  "Orphanage Home",
+  "Poor Relief Office",
+];
+
+const SOCIAL_FACILITY_MODIFIERS = [
+  "Main Building",
+  "Annex",
+  "North Wing",
+  "South Wing",
+  "East Wing",
+  "West Wing",
+];
+
+function buildNamedBank(stems: string[], modifiers: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const stem of stems) {
+    uniquePush(out, stem, seen);
+    for (const mod of modifiers) {
+      uniquePush(out, `${stem} ${mod}`, seen);
+    }
+  }
+  return out;
+}
+
+export const INDUSTRIAL_FACILITY_BANK = buildNamedBank(
+  INDUSTRIAL_FACILITY_STEMS,
+  INDUSTRIAL_FACILITY_MODIFIERS,
+);
+
+export const SOCIAL_FACILITY_BANK = buildNamedBank(
+  SOCIAL_FACILITY_STEMS,
+  SOCIAL_FACILITY_MODIFIERS,
+);
+
 export interface CacheDatabank {
   traits: string[];
   normalSecrets: string[];

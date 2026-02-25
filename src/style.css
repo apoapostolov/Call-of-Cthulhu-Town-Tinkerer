@@ -116,6 +116,9 @@ h1 {
   stroke: rgba(132, 55, 48, 0.55);
   stroke-width: 7.2;
 }
+.town-map-road-commercial {
+  stroke: rgba(146, 60, 53, 0.78);
+}
 .town-map-road-label {
   fill: rgba(69, 56, 40, 0.72);
   font-family: "Georgia", "Times New Roman", serif;
@@ -126,7 +129,7 @@ h1 {
   user-select: none;
 }
 .town-map-road-label-arterial {
-  font-size: 13px;
+  font-size: 15px;
   fill: rgba(88, 43, 36, 0.82);
 }
 .town-map-road-label-collector {
@@ -314,6 +317,11 @@ h1 {
   font-size: 0.82rem;
   color: #a1a1aa;
 }
+.town-map-hover-empty-inline {
+  margin-top: 0.35rem;
+  font-size: 0.82rem;
+  color: #a1a1aa;
+}
 .town-map-hover-more {
   color: #a78bfa;
   font-size: 0.7rem;
@@ -366,6 +374,16 @@ h1 {
   stroke: #cf4c3d;
   stroke-width: 1.35;
   filter: drop-shadow(0 0 3px rgba(115, 39, 30, 0.45));
+}
+.town-map-land-park {
+  fill: rgba(120, 150, 106, 0.42);
+  stroke: rgba(92, 122, 79, 0.68);
+  stroke-dasharray: 3 2;
+}
+.town-map-land-plaza {
+  fill: rgba(202, 182, 148, 0.45);
+  stroke: rgba(132, 101, 70, 0.62);
+  stroke-dasharray: 2.2 1.6;
 }
 .slider-container {
   display: flex;

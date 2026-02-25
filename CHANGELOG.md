@@ -2,9 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
-# Changelog
+## [Unreleased]
 
-All notable changes to this project will be documented in this file.
+### Changed
+
+- Reverted `src/map.ts` to the last committed square-layout map generator for stability and consistency, while keeping non-map processing/documentation work and UI shell styling updates.
 
 ## [1.0.0] - 2026-02-24
 
