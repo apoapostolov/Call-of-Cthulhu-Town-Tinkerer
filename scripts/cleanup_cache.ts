@@ -19,22 +19,6 @@ function normalize(s: string): string {
   return s.toLowerCase().trim().replace(/\.$/, "");
 }
 
-function cleanupPool(pool: string[], maxCommon = 3): string[] {
-  const counts = new Map<string, number>();
-  const unique: string[] = [];
-
-  // Sort to keep original case if possible or just pick one
-  for (const item of pool) {
-    const norm = normalize(item);
-    const count = counts.get(norm) || 0;
-    if (count < maxCommon) {
-      unique.push(item);
-      counts.set(norm, count + 1);
-    }
-  }
-  return unique;
-}
-
 function process() {
   if (!fs.existsSync(rootPath)) {
     console.error("prebuilt_cache.json not found in root.");

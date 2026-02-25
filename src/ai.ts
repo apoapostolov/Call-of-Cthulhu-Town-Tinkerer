@@ -2,9 +2,9 @@ import type { Person } from "./logic.ts";
 import { mulberry32 } from "./logic.ts";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-export const AI_MODEL = "x-ai/grok-4.1-fast"; // switched to a still-fast free variant
+export const AI_MODEL = "deepseek/deepseek-v3.2"; // switched to a still-fast free variant
 const BATCH_SIZE = 50;
-const CONCURRENCY_LIMIT = 5; // Number of parallel requests to OpenRouter
+const CONCURRENCY_LIMIT = 8; // Number of parallel requests to OpenRouter
 export const MAX_ADULTS = 5000; // cap to avoid runaway cost
 const MAX_RETRIES = 3;
 
