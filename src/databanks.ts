@@ -1,3 +1,9 @@
+import {
+  IMPORTED_NORMAL_SECRET_BANK,
+  IMPORTED_SUPERNATURAL_SECRET_BANK,
+  IMPORTED_TRAIT_BANK,
+} from "./databanks_imported.ts";
+
 const STREET_ROOTS = [
   "Church",
   "French",
@@ -478,6 +484,9 @@ function buildStreetBank(): string[] {
 function buildTraitBank(targetSize = 12000): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
+  for (const imported of IMPORTED_TRAIT_BANK) {
+    uniquePush(out, imported.toLowerCase(), seen);
+  }
   for (const t of TRAIT_TEMPERAMENTS) {
     for (const f of TRAIT_FLAWS) {
       for (const q of TRAIT_QUIRKS) {
@@ -497,6 +506,9 @@ function sentenceCase(value: string): string {
 function buildNormalSecretBank(targetSize = 15000): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
+  for (const imported of IMPORTED_NORMAL_SECRET_BANK) {
+    uniquePush(out, sentenceCase(imported), seen);
+  }
   for (const v of SECRET_ACTIONS) {
     for (const obj of SECRET_OBJECTS) {
       for (const ctx of SECRET_CONTEXTS) {
@@ -511,6 +523,9 @@ function buildNormalSecretBank(targetSize = 15000): string[] {
 function buildSupernaturalSecretBank(targetSize = 5000): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
+  for (const imported of IMPORTED_SUPERNATURAL_SECRET_BANK) {
+    uniquePush(out, sentenceCase(imported), seen);
+  }
   for (const v of SUPERNATURAL_VERBS) {
     for (const obj of SUPERNATURAL_OBJECTS) {
       for (const ctx of SUPERNATURAL_CONTEXTS) {
@@ -527,66 +542,242 @@ export const TRAIT_BANK = buildTraitBank();
 export const NORMAL_SECRET_BANK = buildNormalSecretBank();
 export const SUPERNATURAL_SECRET_BANK = buildSupernaturalSecretBank();
 
-const INDUSTRIAL_FACILITY_STEMS = [
+const INDUSTRIAL_OPERATORS = [
+  "Arkham",
+  "Miskatonic",
+  "Dunwich",
+  "Innsmouth",
+  "Kingsport",
+  "Aylesbury",
+  "Essex County",
+  "North River",
+  "South River",
+  "Harbor Belt",
+  "Bay Street",
+  "Old Wharf",
+  "Granite Hill",
+  "Federal",
+  "Union",
+  "Atlas",
+  "Mercury",
+  "Providence",
+  "Stanton",
+  "Wainwright",
+  "Carver",
+  "Pike",
+  "Whittaker",
+  "Hawthorne",
+  "Bishop",
+  "Abernathy",
+  "Caldwell",
+  "Kendall",
+  "Briar",
+  "Lowell",
+];
+
+const INDUSTRIAL_FACILITY_CORES = [
   "Textile Mill",
+  "Woolen Mill",
+  "Cotton Mill",
+  "Thread Spinning House",
   "Foundry",
-  "Rail Freight Yard",
+  "Iron Foundry",
+  "Brass Foundry",
   "Machine Works",
-  "Canning Plant",
-  "Packing House",
-  "Soap Works",
-  "Ship Chandlery",
-  "Coal Depot",
-  "Ice Works",
-  "Brickworks",
-  "Tannery",
-  "Printing Works",
-  "Warehouse",
-  "Timber Yard",
-  "Steam Laundry Plant",
+  "Tool Works",
   "Boiler Works",
+  "Rail Car Works",
+  "Locomotive Repair Shed",
+  "Rail Freight Yard",
+  "Coal Yard",
+  "Coal Gas Plant",
+  "Coke Oven Yard",
+  "Steel Fabrication Works",
+  "Riveting Works",
+  "Pipe Works",
+  "Wire Works",
   "Cable Works",
+  "Telegraph Wire Works",
+  "Electrical Supply Depot",
+  "Printing Works",
+  "Newsprint House",
+  "Paper Mill",
+  "Lumber Yard",
+  "Timber Yard",
+  "Saw Mill",
+  "Planing Mill",
+  "Brickworks",
+  "Tile Works",
+  "Stone Cutting Yard",
+  "Quarry Depot",
+  "Lime Kiln Works",
   "Glassworks",
-  "Fish Processing Shed",
+  "Bottle Works",
+  "Tannery",
+  "Leather Works",
+  "Shoe Factory",
+  "Soap Works",
+  "Candle Works",
+  "Canning Plant",
+  "Fish Packing House",
+  "Meat Packing House",
+  "Cold Storage Warehouse",
+  "Ice Works",
+  "Brewing House",
+  "Distillery Works",
+  "Warehouse",
+  "Bonded Warehouse",
+  "Customs Warehouse",
+  "Dockside Warehouse",
+  "Ship Chandlery",
+  "Rope Walk",
+  "Tar Boiler Yard",
+  "Salt Storehouse",
+  "Flour Mill",
+  "Grain Elevator",
+  "Feed Mill",
+  "Fertilizer Works",
+  "Chemical Works",
+  "Dye Works",
+  "Pharmacy Works",
+  "Laundry Plant",
+  "Steam Laundry Plant",
+  "Pump House",
+  "Waterworks Pumping Station",
+  "Municipal Powerhouse",
+  "Generator House",
+  "Freight Transfer Shed",
+  "Cartage Yard",
+  "Stable and Harness Works",
+  "Wagon Works",
+  "Motor Coach Garage",
+  "Repair Garage",
+  "Engine House",
+  "Boatyard",
+  "Dry Dock Yard",
+  "Pier Shed",
 ];
 
 const INDUSTRIAL_FACILITY_MODIFIERS = [
   "No. 1",
   "No. 2",
+  "No. 3",
+  "Main Works",
   "Annex",
   "North Block",
   "South Block",
   "East Block",
   "West Block",
+  "River Block",
+  "Upper Yard",
+  "Lower Yard",
+  "Wharf Yard",
+  "Freight Annex",
   "Company Works",
+  "Night Shift House",
+  "Boiler Annex",
+  "Rail Spur House",
 ];
 
-const SOCIAL_FACILITY_STEMS = [
-  "St. Matthew Church",
-  "St. Agnes Chapel",
-  "City Statehouse",
-  "County Courthouse",
-  "Municipal Hospital",
-  "Charity Hospital",
+const SOCIAL_OPERATORS = [
+  "Arkham",
+  "Miskatonic",
+  "St. Matthew",
+  "St. Agnes",
+  "St. Jude",
+  "St. Brigid",
+  "First Parish",
+  "Second Parish",
+  "Old South",
+  "Northside",
+  "West Ward",
+  "East Ward",
+  "Riverside",
+  "Harbor Ward",
+  "County",
+  "Municipal",
+  "Commonwealth",
+  "Veterans",
+  "Union",
+  "Civic",
+  "Mercy",
+  "Providence",
+  "Founders",
+  "Pilgrim",
+  "Federal",
+  "Lexington",
+  "Concord",
+  "Beacon",
+  "Summit",
+  "Liberty",
+];
+
+const SOCIAL_FACILITY_CORES = [
+  "Church",
+  "Chapel",
+  "Cathedral House",
+  "Parish Rectory",
+  "Parish Hall",
+  "Mission House",
+  "Statehouse",
+  "Courthouse",
+  "Municipal Hall",
+  "Tax Office",
+  "Registrar Office",
+  "Land Records Office",
   "Public Library",
-  "Town Newspaper Office",
-  "Telegraph Office",
-  "Union Hall",
-  "Cemetery Grounds",
-  "Mortuary Chapel",
-  "Public Schoolhouse",
-  "Girls Academy",
-  "Boys Grammar School",
-  "Railway Station Hall",
-  "Post Office",
+  "Reading Room",
   "City Archive",
+  "Historical Society House",
+  "Museum Hall",
+  "Newspaper Office",
+  "Printing Office",
+  "Telegraph Office",
+  "Post Office",
+  "Telephone Exchange",
   "Fire Brigade House",
   "Police Precinct House",
+  "Detective Bureau",
+  "Magistrate Court",
+  "Municipal Hospital",
+  "Charity Hospital",
+  "Surgical Clinic",
+  "Dispensary",
+  "Asylum Hospital",
+  "Sanatorium",
+  "Poor Relief Office",
+  "Workhouse Office",
+  "Orphanage Home",
+  "Widows Aid Office",
+  "Settlement House",
+  "Union Hall",
+  "Guild Hall",
   "Masonic Lodge Hall",
   "Veterans Hall",
+  "Temperance Hall",
+  "Public Schoolhouse",
+  "Grammar School",
+  "Girls Academy",
+  "Boys Academy",
+  "Teachers College Hall",
+  "Night School House",
+  "Railway Station Hall",
+  "Streetcar Depot Office",
+  "Harbor Office",
+  "Customs House",
+  "Lighthouse Service Office",
   "Public Bath House",
-  "Orphanage Home",
-  "Poor Relief Office",
+  "Pumping Station Office",
+  "Cemetery Grounds Office",
+  "Mortuary Chapel",
+  "Coroner Office",
+  "Funeral Registry Office",
+  "Public Market Hall",
+  "Employment Office",
+  "Immigration Aid Office",
+  "Women's Club Hall",
+  "Town Theater Office",
+  "University Hall",
 ];
 
 const SOCIAL_FACILITY_MODIFIERS = [
@@ -596,28 +787,64 @@ const SOCIAL_FACILITY_MODIFIERS = [
   "South Wing",
   "East Wing",
   "West Wing",
+  "Lower Hall",
+  "Upper Hall",
+  "Basement Office",
+  "Archive Annex",
+  "Administrative Wing",
+  "Caretaker House",
+  "Service Yard",
+  "Parish Annex",
+  "Public Counter",
+  "Records Wing",
+  "Night Office",
+  "Registry Annex",
 ];
 
-function buildNamedBank(stems: string[], modifiers: string[]): string[] {
+function buildFacilityBank(
+  cores: string[],
+  operators: string[],
+  modifiers: string[],
+  targetSize: number,
+): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
-  for (const stem of stems) {
-    uniquePush(out, stem, seen);
+  for (const core of cores) {
+    uniquePush(out, core, seen);
     for (const mod of modifiers) {
-      uniquePush(out, `${stem} ${mod}`, seen);
+      uniquePush(out, `${core} ${mod}`, seen);
+      if (out.length >= targetSize) return out;
+    }
+  }
+  for (const operator of operators) {
+    for (const core of cores) {
+      uniquePush(out, `${operator} ${core}`, seen);
+      if (out.length >= targetSize) return out;
+    }
+  }
+  for (const operator of operators) {
+    for (const core of cores) {
+      for (const mod of modifiers) {
+        uniquePush(out, `${operator} ${core} ${mod}`, seen);
+        if (out.length >= targetSize) return out;
+      }
     }
   }
   return out;
 }
 
-export const INDUSTRIAL_FACILITY_BANK = buildNamedBank(
-  INDUSTRIAL_FACILITY_STEMS,
+export const INDUSTRIAL_FACILITY_BANK = buildFacilityBank(
+  INDUSTRIAL_FACILITY_CORES,
+  INDUSTRIAL_OPERATORS,
   INDUSTRIAL_FACILITY_MODIFIERS,
+  3600,
 );
 
-export const SOCIAL_FACILITY_BANK = buildNamedBank(
-  SOCIAL_FACILITY_STEMS,
+export const SOCIAL_FACILITY_BANK = buildFacilityBank(
+  SOCIAL_FACILITY_CORES,
+  SOCIAL_OPERATORS,
   SOCIAL_FACILITY_MODIFIERS,
+  3600,
 );
 
 export interface CacheDatabank {

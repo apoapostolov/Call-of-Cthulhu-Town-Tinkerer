@@ -158,6 +158,15 @@ h1 {
   pointer-events: none;
 }
 .town-map-building {
+  fill: rgba(74, 58, 42, 0.08);
+  stroke: rgba(58, 46, 33, 0.32);
+  stroke-width: 0.55;
+  transition:
+    stroke 0.15s ease,
+    filter 0.15s ease,
+    fill 0.15s ease;
+}
+.town-map-building-structure {
   stroke: rgba(42, 33, 23, 0.84);
   stroke-width: 0.65;
   opacity: 0.94;
@@ -168,6 +177,11 @@ h1 {
   transform-origin: center;
 }
 .town-map-building.active {
+  fill: rgba(171, 63, 51, 0.11);
+  stroke: rgba(171, 63, 51, 0.72);
+  stroke-width: 0.95;
+}
+.town-map-building.active + .town-map-building-structure {
   stroke: #ab3f33;
   stroke-width: 1.1;
   filter: drop-shadow(0 0 2px rgba(91, 41, 33, 0.34));
@@ -371,6 +385,11 @@ h1 {
   pointer-events: none;
 }
 .town-map-building.selected {
+  fill: rgba(207, 76, 61, 0.14);
+  stroke: rgba(207, 76, 61, 0.9);
+  stroke-width: 1.08;
+}
+.town-map-building.selected + .town-map-building-structure {
   stroke: #cf4c3d;
   stroke-width: 1.35;
   filter: drop-shadow(0 0 3px rgba(115, 39, 30, 0.45));

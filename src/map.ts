@@ -20,15 +20,18 @@ type RoadTier = "local" | "collector" | "arterial";
 type TerrainKind = "none" | "river" | "coast";
 type CoastSide = "north" | "south" | "east" | "west";
 
+interface Point {
+  x: number;
+  y: number;
+}
+
 interface District {
   id: number;
   name: string;
   kind: DistrictKind;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
   hue: string;
+  center: Point;
+  points: Point[];
 }
 
 interface Road {
@@ -51,10 +54,8 @@ interface Building {
   districtId: number;
   districtName: string;
   kind: BuildingKind;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
+  points: Point[];
+  structurePoints: Point[];
   address: string;
   residents: number[];
   workers: number[];
@@ -100,15 +101,6 @@ interface CameraState {
 }
 
 const cameraBySvg = new WeakMap<SVGSVGElement, CameraState>();
-
-const districtKindCycle: DistrictKind[] = [
-  "Old Quarter",
-  "Market Ward",
-  "Harbor Side",
-  "Factory Belt",
-  "Civic Hill",
-  "Garden Ward",
-];
 
 const neighborhoodNames = [
   "Northside Terrace",
@@ -206,9 +198,20 @@ function districtByPoint(
   y: number,
   districts: District[],
 ): District | undefined {
-  return districts.find(
-    (d) => x >= d.x && x <= d.x + d.w && y >= d.y && y <= d.y + d.h,
-  );
+  let best: District | undefined;
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (const district of districts) {
+    const dx = x - district.center.x;
+    const dy = y - district.center.y;
+    const centerDist = Math.hypot(dx, dy);
+    const boundaryDist = Math.max(1, averageRadius(district.points, district.center));
+    const score = centerDist / boundaryDist;
+    if (score < bestScore) {
+      bestScore = score;
+      best = district;
+    }
+  }
+  return best;
 }
 
 function randomBuildingKind(
@@ -345,38 +348,353 @@ function makeRoadPositions(
   return positions;
 }
 
-function edgeLots(
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
-  depth: number,
+function pointsToPath(points: Point[]): string {
+  if (points.length === 0) return "";
+  return `M ${points.map((p) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" L ")}`;
+}
+
+function polygonPointsAttr(points: Point[]): string {
+  return points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+}
+
+function polygonCentroid(points: Point[]): Point {
+  const sum = points.reduce(
+    (acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }),
+    { x: 0, y: 0 },
+  );
+  return {
+    x: sum.x / points.length,
+    y: sum.y / points.length,
+  };
+}
+
+function polygonBounds(points: Point[]): {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+} {
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  return {
+    left: Math.min(...xs),
+    right: Math.max(...xs),
+    top: Math.min(...ys),
+    bottom: Math.max(...ys),
+  };
+}
+
+function averageRadius(points: Point[], center: Point): number {
+  if (points.length === 0) return 1;
+  return (
+    points.reduce((acc, p) => acc + Math.hypot(p.x - center.x, p.y - center.y), 0) /
+    points.length
+  );
+}
+
+function insetPolygon(points: Point[], inset: number): Point[] {
+  const center = polygonCentroid(points);
+  return points.map((p) => {
+    const dx = p.x - center.x;
+    const dy = p.y - center.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    const nextDist = Math.max(2, dist - inset);
+    return { x: center.x + (dx / dist) * nextDist, y: center.y + (dy / dist) * nextDist };
+  });
+}
+
+function midpoint(a: Point, b: Point): Point {
+  return { x: (a.x + b.x) * 0.5, y: (a.y + b.y) * 0.5 };
+}
+
+function normalize(vx: number, vy: number): Point {
+  const m = Math.hypot(vx, vy) || 1;
+  return { x: vx / m, y: vy / m };
+}
+
+function dot(a: Point, b: Point): number {
+  return a.x * b.x + a.y * b.y;
+}
+
+function orientedRectInsideZone(
+  zone: Point[],
+  preferAlongRoad: Point,
   rng: () => number,
-): { x: number; y: number; w: number; h: number }[] {
-  const lots: { x: number; y: number; w: number; h: number }[] = [];
-  const horizontal = Math.abs(y2 - y1) < 0.001;
-  if (horizontal) {
-    const left = Math.min(x1, x2);
-    const right = Math.max(x1, x2);
-    let cursor = left;
-    while (cursor < right - 8) {
-      const lotW = clamp(14 + rng() * 22, 10, 34);
-      const next = Math.min(cursor + lotW, right);
-      lots.push({ x: cursor, y: y1, w: next - cursor, h: depth });
-      cursor = next + 2;
+): Point[] {
+  const c = polygonCentroid(zone);
+  const axisA = normalize(preferAlongRoad.x, preferAlongRoad.y);
+  const axisB = { x: -axisA.y, y: axisA.x };
+
+  let maxA = 0;
+  let maxB = 0;
+  for (const p of zone) {
+    const rel = { x: p.x - c.x, y: p.y - c.y };
+    maxA = Math.max(maxA, Math.abs(dot(rel, axisA)));
+    maxB = Math.max(maxB, Math.abs(dot(rel, axisB)));
+  }
+  const halfA = Math.max(2.8, maxA * (0.44 + rng() * 0.16));
+  const halfB = Math.max(2.4, maxB * (0.34 + rng() * 0.14));
+
+  return [
+    { x: c.x - axisA.x * halfA - axisB.x * halfB, y: c.y - axisA.y * halfA - axisB.y * halfB },
+    { x: c.x + axisA.x * halfA - axisB.x * halfB, y: c.y + axisA.y * halfA - axisB.y * halfB },
+    { x: c.x + axisA.x * halfA + axisB.x * halfB, y: c.y + axisA.y * halfA + axisB.y * halfB },
+    { x: c.x - axisA.x * halfA + axisB.x * halfB, y: c.y - axisA.y * halfA + axisB.y * halfB },
+  ];
+}
+
+function quadPoint(quad: Point[], u: number, v: number): Point {
+  const [a, b, c, d] = quad;
+  return {
+    x:
+      a.x * (1 - u) * (1 - v) +
+      b.x * u * (1 - v) +
+      c.x * u * v +
+      d.x * (1 - u) * v,
+    y:
+      a.y * (1 - u) * (1 - v) +
+      b.y * u * (1 - v) +
+      c.y * u * v +
+      d.y * (1 - u) * v,
+  };
+}
+
+function quadCellPolygon(
+  quad: Point[],
+  u0: number,
+  u1: number,
+  v0: number,
+  v1: number,
+): Point[] {
+  return [
+    quadPoint(quad, u0, v0),
+    quadPoint(quad, u1, v0),
+    quadPoint(quad, u1, v1),
+    quadPoint(quad, u0, v1),
+  ];
+}
+
+function buildRoadNodeGrid(
+  xRoads: number[],
+  yRoads: number[],
+  center: Point,
+  width: number,
+  height: number,
+  rng: () => number,
+): Point[][] {
+  const grid: Point[][] = [];
+  const dxAvg = (xRoads[xRoads.length - 1] - xRoads[0]) / (xRoads.length - 1);
+  const dyAvg = (yRoads[yRoads.length - 1] - yRoads[0]) / (yRoads.length - 1);
+  const localAmplitude = Math.min(dxAvg, dyAvg) * 0.2;
+
+  for (let xi = 0; xi < xRoads.length; xi++) {
+    const col: Point[] = [];
+    for (let yi = 0; yi < yRoads.length; yi++) {
+      const baseX = xRoads[xi];
+      const baseY = yRoads[yi];
+      const edge = xi === 0 || yi === 0 || xi === xRoads.length - 1 || yi === yRoads.length - 1;
+      const jitterX = (rng() - 0.5) * (edge ? dxAvg * 0.08 : localAmplitude);
+      const jitterY = (rng() - 0.5) * (edge ? dyAvg * 0.08 : localAmplitude);
+
+      const cdx = baseX - center.x;
+      const cdy = baseY - center.y;
+      const radialDist = Math.hypot(cdx, cdy) || 1;
+      const tangentialBias = (rng() - 0.5) * Math.min(24, radialDist * 0.06);
+      const tx = (-cdy / radialDist) * tangentialBias;
+      const ty = (cdx / radialDist) * tangentialBias;
+
+      col.push({
+        x: clamp(baseX + jitterX + tx, 0, width),
+        y: clamp(baseY + jitterY + ty, 0, height),
+      });
     }
-  } else {
-    const top = Math.min(y1, y2);
-    const bottom = Math.max(y1, y2);
-    let cursor = top;
-    while (cursor < bottom - 8) {
-      const lotH = clamp(14 + rng() * 22, 10, 34);
-      const next = Math.min(cursor + lotH, bottom);
-      lots.push({ x: x1, y: cursor, w: depth, h: next - cursor });
-      cursor = next + 2;
+    grid.push(col);
+  }
+
+  const minDx = dxAvg * 0.28;
+  const minDy = dyAvg * 0.28;
+  for (let pass = 0; pass < 4; pass++) {
+    for (let yi = 0; yi < yRoads.length; yi++) {
+      grid[0][yi].x = xRoads[0];
+      grid[xRoads.length - 1][yi].x = xRoads[xRoads.length - 1];
+      for (let xi = 1; xi < xRoads.length - 1; xi++) {
+        grid[xi][yi].x = Math.max(grid[xi][yi].x, grid[xi - 1][yi].x + minDx);
+      }
+      for (let xi = xRoads.length - 2; xi >= 1; xi--) {
+        grid[xi][yi].x = Math.min(grid[xi][yi].x, grid[xi + 1][yi].x - minDx);
+      }
+    }
+    for (let xi = 0; xi < xRoads.length; xi++) {
+      grid[xi][0].y = yRoads[0];
+      grid[xi][yRoads.length - 1].y = yRoads[yRoads.length - 1];
+      for (let yi = 1; yi < yRoads.length - 1; yi++) {
+        grid[xi][yi].y = Math.max(grid[xi][yi].y, grid[xi][yi - 1].y + minDy);
+      }
+      for (let yi = yRoads.length - 2; yi >= 1; yi--) {
+        grid[xi][yi].y = Math.min(grid[xi][yi].y, grid[xi][yi + 1].y - minDy);
+      }
     }
   }
-  return lots;
+  return grid;
+}
+
+function districtKindsByUrbanModel(
+  center: Point,
+  width: number,
+  height: number,
+  rng: () => number,
+): Array<{ kind: DistrictKind; center: Point }> {
+  const cornerOptions: Point[] = [
+    { x: width * 0.16, y: height * 0.18 },
+    { x: width * 0.84, y: height * 0.18 },
+    { x: width * 0.16, y: height * 0.82 },
+    { x: width * 0.84, y: height * 0.82 },
+  ];
+  const firstCorner = cornerOptions[Math.floor(rng() * cornerOptions.length)];
+  const oppositeCorner = cornerOptions.find(
+    (c) => (c.x < width * 0.5) !== (firstCorner.x < width * 0.5) && (c.y < height * 0.5) !== (firstCorner.y < height * 0.5),
+  ) ?? cornerOptions[0];
+
+  return [
+    { kind: "Market Ward", center: { x: center.x + (rng() - 0.5) * 46, y: center.y + (rng() - 0.5) * 42 } },
+    { kind: "Civic Hill", center: { x: center.x + (rng() - 0.5) * 90, y: center.y + (rng() - 0.5) * 90 } },
+    { kind: "Old Quarter", center: { x: center.x + width * (rng() < 0.5 ? -0.17 : 0.17), y: center.y + height * (rng() - 0.5) * 0.22 } },
+    { kind: "Garden Ward", center: { x: center.x + width * (rng() - 0.5) * 0.45, y: center.y + height * (rng() - 0.5) * 0.45 } },
+    { kind: "Factory Belt", center: { x: firstCorner.x, y: firstCorner.y } },
+    { kind: "Harbor Side", center: { x: oppositeCorner.x, y: oppositeCorner.y } },
+  ];
+}
+
+function irregularDistrictPolygon(
+  seed: Point,
+  baseRadius: number,
+  width: number,
+  height: number,
+  margin: number,
+  rng: () => number,
+): Point[] {
+  const points: Point[] = [];
+  const steps = 8 + Math.floor(rng() * 4);
+  for (let i = 0; i < steps; i++) {
+    const angle = (i / steps) * Math.PI * 2 + (rng() - 0.5) * 0.2;
+    const radius = baseRadius * (0.72 + rng() * 0.55);
+    points.push({
+      x: clamp(seed.x + Math.cos(angle) * radius, margin, width - margin),
+      y: clamp(seed.y + Math.sin(angle) * radius, margin, height - margin),
+    });
+  }
+  return points;
+}
+
+function cross(o: Point, a: Point, b: Point): number {
+  return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+}
+
+function convexHull(points: Point[]): Point[] {
+  const unique = Array.from(
+    new Map(points.map((p) => [`${p.x.toFixed(3)}:${p.y.toFixed(3)}`, p])).values(),
+  );
+  if (unique.length <= 3) return unique;
+  unique.sort((a, b) => (a.x === b.x ? a.y - b.y : a.x - b.x));
+
+  const lower: Point[] = [];
+  for (const p of unique) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) {
+      lower.pop();
+    }
+    lower.push(p);
+  }
+  const upper: Point[] = [];
+  for (let i = unique.length - 1; i >= 0; i--) {
+    const p = unique[i];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) {
+      upper.pop();
+    }
+    upper.push(p);
+  }
+  lower.pop();
+  upper.pop();
+  return [...lower, ...upper];
+}
+
+function generateGrowthFront(
+  center: Point,
+  width: number,
+  height: number,
+  margin: number,
+  scale: SettlementScale,
+  rng: () => number,
+): Point[] {
+  const points: Point[] = [center];
+  const branches: Array<{ p: Point; angle: number; energy: number }> = [];
+  const initialBranches =
+    scale === "Metropolis" ? 8 : scale === "City" ? 7 : scale === "Town" ? 6 : 5;
+  const maxEnergy =
+    scale === "Metropolis" ? 46 : scale === "City" ? 38 : scale === "Town" ? 30 : 22;
+  const stepBase = Math.min(width, height) * (scale === "Metropolis" ? 0.017 : 0.022);
+
+  for (let i = 0; i < initialBranches; i++) {
+    const angle = (i / initialBranches) * Math.PI * 2 + (rng() - 0.5) * 0.45;
+    branches.push({ p: { x: center.x, y: center.y }, angle, energy: maxEnergy });
+  }
+
+  while (branches.length > 0 && points.length < 2400) {
+    const b = branches.pop()!;
+    let cursor = { x: b.p.x, y: b.p.y };
+    let angle = b.angle;
+    let energy = b.energy;
+    while (energy > 0) {
+      const step = stepBase * (0.75 + rng() * 0.85);
+      angle += (rng() - 0.5) * 0.52;
+      const nx = cursor.x + Math.cos(angle) * step;
+      const ny = cursor.y + Math.sin(angle) * step;
+      if (nx < margin || nx > width - margin || ny < margin || ny > height - margin) break;
+
+      cursor = { x: nx, y: ny };
+      points.push(cursor);
+      energy -= 1;
+
+      if (energy > 6 && rng() < 0.19) {
+        branches.push({
+          p: { x: cursor.x, y: cursor.y },
+          angle: angle + (rng() < 0.5 ? -1 : 1) * (0.35 + rng() * 0.7),
+          energy: Math.floor(energy * (0.48 + rng() * 0.34)),
+        });
+      }
+      if (energy > 5 && rng() < 0.12) {
+        branches.push({
+          p: { x: cursor.x, y: cursor.y },
+          angle: angle + (rng() < 0.5 ? -1 : 1) * (0.2 + rng() * 0.45),
+          energy: Math.floor(energy * (0.38 + rng() * 0.24)),
+        });
+      }
+    }
+  }
+
+  const sporePatches = scale === "Metropolis" ? 5 : scale === "City" ? 4 : 3;
+  for (let i = 0; i < sporePatches; i++) {
+    const anchor = points[Math.floor(rng() * points.length)] ?? center;
+    const count = 20 + Math.floor(rng() * 36);
+    for (let j = 0; j < count; j++) {
+      const a = rng() * Math.PI * 2;
+      const r = (2 + rng() * 12) * (1 + i * 0.1);
+      points.push({
+        x: clamp(anchor.x + Math.cos(a) * r, margin, width - margin),
+        y: clamp(anchor.y + Math.sin(a) * r, margin, height - margin),
+      });
+    }
+  }
+
+  return points;
+}
+
+function minDistanceToPoints(p: Point, cloud: Point[]): number {
+  let best = Number.POSITIVE_INFINITY;
+  for (const q of cloud) {
+    const d = Math.hypot(p.x - q.x, p.y - q.y);
+    if (d < best) best = d;
+  }
+  return best;
 }
 
 function createMapModel(
@@ -389,6 +707,11 @@ function createMapModel(
   const rng = mulberry32(seed ^ 0x4d4150);
 
   const margin = 58;
+  const center: Point = {
+    x: config.width * (0.5 + (rng() - 0.5) * 0.08),
+    y: config.height * (0.5 + (rng() - 0.5) * 0.08),
+  };
+
   const xRoads = makeRoadPositions(
     config.verticalRoads,
     margin,
@@ -402,53 +725,14 @@ function createMapModel(
     rng,
   );
 
-  const districts: District[] = [];
-  const districtCols = 3;
-  const districtRows = 2;
-  const districtW = (config.width - margin * 2) / districtCols;
-  const districtH = (config.height - margin * 2) / districtRows;
-  let districtId = 0;
-  for (let r = 0; r < districtRows; r++) {
-    for (let c = 0; c < districtCols; c++) {
-      const kind = districtKindCycle[districtId % districtKindCycle.length];
-      const x = margin + c * districtW;
-      const y = margin + r * districtH;
-      districts.push({
-        id: districtId,
-        name: neighborhoodNames[districtId % neighborhoodNames.length],
-        kind,
-        x,
-        y,
-        w: districtW,
-        h: districtH,
-        hue: districtHue[kind],
-      });
-      districtId++;
-    }
-  }
-
-  const roads: Road[] = [];
-  let roadId = 0;
-  for (let i = 0; i < xRoads.length; i++) {
-    roads.push({
-      id: roadId++,
-      name: makeRoadName(i, true),
-      path: `M ${xRoads[i].toFixed(1)} ${margin} L ${xRoads[i].toFixed(1)} ${(
-        config.height - margin
-      ).toFixed(1)}`,
-      tier: roadTier(i, xRoads.length),
-    });
-  }
-  for (let i = 0; i < yRoads.length; i++) {
-    roads.push({
-      id: roadId++,
-      name: makeRoadName(i, false),
-      path: `M ${margin} ${yRoads[i].toFixed(1)} L ${(config.width - margin).toFixed(
-        1,
-      )} ${yRoads[i].toFixed(1)}`,
-      tier: roadTier(i, yRoads.length),
-    });
-  }
+  const nodes = buildRoadNodeGrid(
+    xRoads,
+    yRoads,
+    center,
+    config.width,
+    config.height,
+    rng,
+  );
 
   const terrain = rollTerrain(scale, rng);
   const water: WaterFeature[] = [];
@@ -526,9 +810,64 @@ function createMapModel(
     }
   }
 
+  const districtSeedDefs = districtKindsByUrbanModel(
+    center,
+    config.width,
+    config.height,
+    rng,
+  );
+  const districts: District[] = [];
+  for (let i = 0; i < districtSeedDefs.length; i++) {
+    const d = districtSeedDefs[i];
+    const baseRadius = Math.min(config.width, config.height) * (0.18 + rng() * 0.1);
+    districts.push({
+      id: i,
+      name: neighborhoodNames[i % neighborhoodNames.length],
+      kind: d.kind,
+      hue: districtHue[d.kind],
+      center: d.center,
+      points: irregularDistrictPolygon(
+        d.center,
+        baseRadius,
+        config.width,
+        config.height,
+        margin,
+        rng,
+      ),
+    });
+  }
+
+  const roads: Road[] = [];
+  let roadId = 0;
+  for (let i = 0; i < nodes.length; i++) {
+    roads.push({
+      id: roadId++,
+      name: makeRoadName(i, true),
+      path: pointsToPath(nodes[i]),
+      tier: roadTier(i, nodes.length),
+    });
+  }
+  for (let i = 0; i < nodes[0].length; i++) {
+    const pts: Point[] = [];
+    for (let xi = 0; xi < nodes.length; xi++) pts.push(nodes[xi][i]);
+    roads.push({
+      id: roadId++,
+      name: makeRoadName(i, false),
+      path: pointsToPath(pts),
+      tier: roadTier(i, nodes[0].length),
+    });
+  }
+
   const buildings: Building[] = [];
   let buildingId = 0;
-  const innerGap = 4;
+  const growthFront = generateGrowthFront(
+    center,
+    config.width,
+    config.height,
+    margin,
+    scale,
+    rng,
+  );
   const shoreline =
     coastSide === null
       ? 0
@@ -538,95 +877,170 @@ function createMapModel(
           ? config.height - coastDepth
           : coastDepth;
 
-  outer: for (let yi = 0; yi < yRoads.length - 1; yi++) {
-    for (let xi = 0; xi < xRoads.length - 1; xi++) {
-      if (buildings.length >= config.maxBuildings) break outer;
-      const left = xRoads[xi] + innerGap;
-      const right = xRoads[xi + 1] - innerGap;
-      const top = yRoads[yi] + innerGap;
-      const bottom = yRoads[yi + 1] - innerGap;
-      const cellW = right - left;
-      const cellH = bottom - top;
-      if (cellW < 20 || cellH < 20) continue;
+  const blockEntries: Array<{ xi: number; yi: number; block: Point[]; growthScore: number }> = [];
+  for (let yi = 0; yi < nodes[0].length - 1; yi++) {
+    for (let xi = 0; xi < nodes.length - 1; xi++) {
+      const block = [
+        nodes[xi][yi],
+        nodes[xi + 1][yi],
+        nodes[xi + 1][yi + 1],
+        nodes[xi][yi + 1],
+      ];
+      const c = polygonCentroid(block);
+      const radialDist = Math.hypot(c.x - center.x, c.y - center.y);
+      const branchDist = minDistanceToPoints(c, growthFront);
+      const growthScore = branchDist * 0.82 + radialDist * 0.18 + rng() * 10;
+      blockEntries.push({
+        xi,
+        yi,
+        block,
+        growthScore,
+      });
+    }
+  }
+  blockEntries.sort((a, b) => a.growthScore - b.growthScore);
+
+  for (const entry of blockEntries) {
+    if (buildings.length >= config.maxBuildings) break;
+    const { xi, yi, block } = entry;
+      const b = polygonBounds(block);
+      const cellW = b.right - b.left;
+      const cellH = b.bottom - b.top;
+      if (cellW < 22 || cellH < 22) continue;
 
       const inWater = isWaterOccupied(
         terrain,
         coastSide,
         shoreline,
-        { left, right, top, bottom },
+        { left: b.left, right: b.right, top: b.top, bottom: b.bottom },
         terrain === "river" ? { y: riverY, h: riverHalf } : undefined,
       );
       if (inWater && rng() < 0.72) continue;
 
       const district =
-        districtByPoint((left + right) * 0.5, (top + bottom) * 0.5, districts) ||
+        districtByPoint((b.left + b.right) * 0.5, (b.top + b.bottom) * 0.5, districts) ||
         districts[0];
 
-      const depth = clamp(Math.min(cellW, cellH) * 0.26, 8, 20);
-      const perimeterLots = [
-        ...edgeLots(left, top, right, top, depth, rng),
-        ...edgeLots(left, bottom - depth, right, bottom - depth, depth, rng),
-        ...edgeLots(left, top + depth, left, bottom - depth, depth, rng),
-        ...edgeLots(
-          right - depth,
-          top + depth,
-          right - depth,
-          bottom - depth,
-          depth,
-          rng,
-        ),
-      ];
+      const localCenter = polygonCentroid(block);
+      const normCenterDist =
+        Math.hypot(localCenter.x - center.x, localCenter.y - center.y) /
+        Math.hypot(config.width, config.height);
+      const toFactory = districts
+        .filter((d) => d.kind === "Factory Belt" || d.kind === "Harbor Side")
+        .reduce((acc, d) => Math.min(acc, Math.hypot(localCenter.x - d.center.x, localCenter.y - d.center.y)), Number.POSITIVE_INFINITY);
 
-      for (const lot of perimeterLots) {
-        if (buildings.length >= config.maxBuildings) break outer;
-        if (lot.w < 7 || lot.h < 7) continue;
-        if (rng() < 0.12) continue;
+      const cols = clamp(Math.floor(3 + rng() * 3), 3, 5);
+      const rows = clamp(Math.floor(3 + rng() * 3), 3, 5);
+      for (let u = 0; u < cols; u++) {
+        for (let v = 0; v < rows; v++) {
+          if (buildings.length >= config.maxBuildings) break;
+          const edgeLot = u === 0 || v === 0 || u === cols - 1 || v === rows - 1;
+          if (!edgeLot && rng() > (scale === "Metropolis" ? 0.45 : scale === "City" ? 0.32 : 0.18)) continue;
 
-        const inset = 1 + rng() * 2;
-        const x = lot.x + inset;
-        const y = lot.y + inset;
-        const w = Math.max(5, lot.w - inset * 2);
-        const h = Math.max(5, lot.h - inset * 2);
-        if (w < 5 || h < 5) continue;
+          const lot = quadCellPolygon(
+            block,
+            u / cols,
+            (u + 1) / cols,
+            v / rows,
+            (v + 1) / rows,
+          );
+          const lb = polygonBounds(lot);
+          if (lb.right - lb.left < 7 || lb.bottom - lb.top < 7) continue;
 
-        const kind = randomBuildingKind(rng, district.kind);
-        const residentsTarget =
-          kind === "Residential"
-            ? 1 + Math.floor(rng() * 5)
-            : kind === "Mixed"
-              ? 1 + Math.floor(rng() * 3)
-              : Math.floor(rng() * 2);
-        const workersTarget =
-          kind === "Industrial"
-            ? 3 + Math.floor(rng() * 9)
-            : kind === "Commercial"
-              ? 2 + Math.floor(rng() * 7)
-              : kind === "Civic"
-                ? 2 + Math.floor(rng() * 5)
-                : kind === "Mixed"
-                  ? 1 + Math.floor(rng() * 4)
-                  : Math.floor(rng() * 2);
+          const zone = insetPolygon(lot, 2 + rng() * 2.4);
+          const zoneBounds = polygonBounds(zone);
+          if (zoneBounds.right - zoneBounds.left < 6 || zoneBounds.bottom - zoneBounds.top < 6) {
+            continue;
+          }
 
-        buildings.push({
-          id: buildingId++,
-          districtId: district.id,
-          districtName: district.name,
-          kind,
-          x,
-          y,
-          w,
-          h,
-          address: addressForLot(
-            xi * 20 + rng() * 4,
-            yi * 12 + rng() * 4,
-            xi,
-            yi,
-          ),
-          residents: pickIds(rng, people, residentsTarget),
-          workers: pickIds(rng, people, workersTarget),
-        });
+          const [a, b, c, d] = zone;
+          const uVec = normalize(midpoint(b, c).x - midpoint(a, d).x, midpoint(b, c).y - midpoint(a, d).y);
+          const vVec = normalize(midpoint(d, c).x - midpoint(a, b).x, midpoint(d, c).y - midpoint(a, b).y);
+          const alongRoad =
+            u === 0 || u === cols - 1
+              ? vVec
+              : v === 0 || v === rows - 1
+                ? uVec
+                : (zoneBounds.right - zoneBounds.left) > (zoneBounds.bottom - zoneBounds.top)
+                  ? uVec
+                  : vVec;
+          const structure = orientedRectInsideZone(zone, alongRoad, rng);
+
+          let kind = randomBuildingKind(rng, district.kind);
+          if (normCenterDist < 0.13 && rng() < 0.72) {
+            kind = rng() < 0.64 ? "Commercial" : "Civic";
+          } else if (normCenterDist > 0.27 && toFactory > Math.min(config.width, config.height) * 0.22 && rng() < 0.52) {
+            kind = "Residential";
+          } else if (toFactory < Math.min(config.width, config.height) * 0.2 && rng() < 0.66) {
+            kind = "Industrial";
+          }
+
+          const residentsTarget =
+            kind === "Residential"
+              ? 1 + Math.floor(rng() * 5)
+              : kind === "Mixed"
+                ? 1 + Math.floor(rng() * 3)
+                : Math.floor(rng() * 2);
+          const workersTarget =
+            kind === "Industrial"
+              ? 3 + Math.floor(rng() * 9)
+              : kind === "Commercial"
+                ? 2 + Math.floor(rng() * 7)
+                : kind === "Civic"
+                  ? 2 + Math.floor(rng() * 5)
+                  : kind === "Mixed"
+                    ? 1 + Math.floor(rng() * 4)
+                    : Math.floor(rng() * 2);
+
+          buildings.push({
+            id: buildingId++,
+            districtId: district.id,
+            districtName: district.name,
+            kind,
+            points: zone,
+            structurePoints: structure,
+            address: addressForLot(
+              xi * 20 + rng() * 4,
+              yi * 12 + rng() * 4,
+              xi,
+              yi,
+            ),
+            residents: pickIds(rng, people, residentsTarget),
+            workers: pickIds(rng, people, workersTarget),
+          });
+        }
       }
     }
+
+  const districtPoints = new Map<number, Point[]>();
+  for (const district of districts) districtPoints.set(district.id, []);
+  for (let yi = 0; yi < nodes[0].length - 1; yi++) {
+    for (let xi = 0; xi < nodes.length - 1; xi++) {
+      const block = [
+        nodes[xi][yi],
+        nodes[xi + 1][yi],
+        nodes[xi + 1][yi + 1],
+        nodes[xi][yi + 1],
+      ];
+      const c = polygonCentroid(block);
+      const district = districtByPoint(c.x, c.y, districts);
+      if (!district) continue;
+      const list = districtPoints.get(district.id);
+      if (!list) continue;
+      list.push(...block);
+    }
+  }
+  for (const district of districts) {
+    const pts = districtPoints.get(district.id);
+    if (!pts || pts.length < 3) continue;
+    district.points = insetPolygon(
+      convexHull(pts),
+      -(2 + rng() * 8),
+    ).map((p) => ({
+      x: clamp(p.x, margin, config.width - margin),
+      y: clamp(p.y, margin, config.height - margin),
+    }));
+    district.center = polygonCentroid(district.points);
   }
 
   return {
@@ -813,7 +1227,7 @@ function hoverPeopleButtons(
   getPersonName: (p: Person) => string,
 ): string {
   if (ids.length === 0) {
-    return `<div class="town-map-hover-empty">${title}: none listed</div>`;
+    return `<div class="town-map-hover-empty"><strong>${title}:</strong> None listed</div>`;
   }
   const head = ids.slice(0, 6);
   const rows = head
@@ -831,27 +1245,24 @@ function hoverPeopleButtons(
 }
 
 function roadLabel(svgEl: SVGSVGElement, road: Road): void {
-  const m = road.path.match(/M\s+([\d.]+)\s+([\d.]+)\s+L\s+([\d.]+)\s+([\d.]+)/);
-  if (!m) return;
-  const x1 = Number(m[1]);
-  const y1 = Number(m[2]);
-  const x2 = Number(m[3]);
-  const y2 = Number(m[4]);
-  const vertical = Math.abs(x1 - x2) < 0.01;
+  const points = Array.from(road.path.matchAll(/(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)/g)).map(
+    (m) => ({ x: Number(m[1]), y: Number(m[2]) }),
+  );
+  if (points.length < 2) return;
+  const midIdx = Math.floor(points.length / 2);
+  const mid = points[midIdx];
+  const near = points[Math.max(0, midIdx - 1)];
+  const angle = Math.atan2(mid.y - near.y, mid.x - near.x) * (180 / Math.PI);
 
   const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
   text.setAttribute("class", `town-map-road-label town-map-road-label-${road.tier}`);
   text.dataset.tier = road.tier;
-
-  if (vertical) {
-    text.setAttribute("x", (x1 + 6).toFixed(1));
-    text.setAttribute("y", ((y1 + y2) * 0.5).toFixed(1));
-    text.setAttribute("transform", `rotate(-90 ${x1 + 6} ${(y1 + y2) * 0.5})`);
-  } else {
-    text.setAttribute("x", ((x1 + x2) * 0.5).toFixed(1));
-    text.setAttribute("y", (y1 - 3).toFixed(1));
-  }
-
+  text.setAttribute("x", mid.x.toFixed(1));
+  text.setAttribute("y", mid.y.toFixed(1));
+  text.setAttribute(
+    "transform",
+    `rotate(${angle.toFixed(1)} ${mid.x.toFixed(1)} ${mid.y.toFixed(1)})`,
+  );
   text.textContent = road.name;
   svgEl.appendChild(text);
 }
@@ -901,22 +1312,19 @@ export function renderTownMapPrototype(params: RenderParams): void {
   svgEl.appendChild(bg);
 
   for (const district of model.districts) {
-    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-    rect.setAttribute("x", district.x.toFixed(1));
-    rect.setAttribute("y", district.y.toFixed(1));
-    rect.setAttribute("width", district.w.toFixed(1));
-    rect.setAttribute("height", district.h.toFixed(1));
-    rect.setAttribute("class", `town-map-district ${districtFillClass(district.kind)}`);
-    rect.setAttribute("fill", district.hue);
-    rect.setAttribute("opacity", "0.42");
-    svgEl.appendChild(rect);
+    const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+    poly.setAttribute("points", polygonPointsAttr(district.points));
+    poly.setAttribute("class", `town-map-district ${districtFillClass(district.kind)}`);
+    poly.setAttribute("fill", district.hue);
+    poly.setAttribute("opacity", "0.42");
+    svgEl.appendChild(poly);
 
     const neighborhood = document.createElementNS(
       "http://www.w3.org/2000/svg",
       "text",
     );
-    neighborhood.setAttribute("x", (district.x + district.w * 0.5).toFixed(1));
-    neighborhood.setAttribute("y", (district.y + district.h * 0.5).toFixed(1));
+    neighborhood.setAttribute("x", district.center.x.toFixed(1));
+    neighborhood.setAttribute("y", district.center.y.toFixed(1));
     neighborhood.setAttribute("class", "town-map-neighborhood-label");
     neighborhood.textContent = district.name;
     svgEl.appendChild(neighborhood);
@@ -956,14 +1364,17 @@ export function renderTownMapPrototype(params: RenderParams): void {
   svgEl.appendChild(buildingsGroup);
 
   for (const building of model.buildings) {
-    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-    rect.setAttribute("x", building.x.toFixed(1));
-    rect.setAttribute("y", building.y.toFixed(1));
-    rect.setAttribute("width", building.w.toFixed(1));
-    rect.setAttribute("height", building.h.toFixed(1));
-    rect.setAttribute("class", `town-map-building ${buildingFillClass(building.kind)}`);
-    rect.dataset.buildingId = String(building.id);
-    buildingsGroup.appendChild(rect);
+    const zone = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+    zone.setAttribute("points", polygonPointsAttr(building.points));
+    zone.setAttribute("class", "town-map-building");
+    zone.dataset.buildingId = String(building.id);
+    buildingsGroup.appendChild(zone);
+
+    const structure = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+    structure.setAttribute("points", polygonPointsAttr(building.structurePoints));
+    structure.setAttribute("class", `town-map-building-structure ${buildingFillClass(building.kind)}`);
+    structure.setAttribute("pointer-events", "none");
+    buildingsGroup.appendChild(structure);
   }
 
   const paperFiber = document.createElementNS("http://www.w3.org/2000/svg", "rect");
@@ -1050,7 +1461,7 @@ export function renderTownMapPrototype(params: RenderParams): void {
 
   const setSelectedBuilding = (buildingId: number | null) => {
     selectedBuildingId = buildingId;
-    const nodes = svgEl.querySelectorAll<SVGRectElement>(".town-map-building");
+    const nodes = svgEl.querySelectorAll<SVGPolygonElement>(".town-map-building");
     nodes.forEach((n) => {
       const isSel = Number(n.dataset.buildingId) === selectedBuildingId;
       n.classList.toggle("selected", isSel);
@@ -1064,7 +1475,7 @@ export function renderTownMapPrototype(params: RenderParams): void {
     if (building) renderBuildingPanel(building);
   };
 
-  const interactiveBuildings = svgEl.querySelectorAll<SVGRectElement>(
+  const interactiveBuildings = svgEl.querySelectorAll<SVGPolygonElement>(
     ".town-map-building",
   );
   interactiveBuildings.forEach((node) => {
