@@ -54,6 +54,7 @@ interface Building {
   districtId: number;
   districtName: string;
   kind: BuildingKind;
+  descriptor: string;
   points: Point[];
   structurePoints: Point[];
   address: string;
@@ -102,20 +103,49 @@ interface CameraState {
 
 const cameraBySvg = new WeakMap<SVGSVGElement, CameraState>();
 
-const neighborhoodNames = [
-  "Northside Terrace",
-  "Riverside Yard",
-  "French Hill",
-  "Merchant Row",
-  "Garrison Green",
-  "Wharf End",
-  "Old Gables",
-  "College Rise",
-  "Mason Quarter",
-  "Dunwich Roadside",
-  "South Market",
-  "Ashbury Common",
+const DISTRICT_NAME_PREFIXES = [
+  "North",
+  "South",
+  "East",
+  "West",
+  "Upper",
+  "Lower",
+  "Old",
+  "New",
+  "Grand",
+  "Harbor",
+  "River",
+  "Market",
+  "Foundry",
+  "Miskatonic",
+  "Lantern",
+  "Union",
 ];
+
+const DISTRICT_NAME_CORES = [
+  "Terrace",
+  "Yard",
+  "Hill",
+  "Row",
+  "Green",
+  "End",
+  "Quarter",
+  "Rise",
+  "Heights",
+  "Common",
+  "District",
+  "Ward",
+];
+
+function buildDistrictNameBank(): string[] {
+  const out: string[] = [];
+  for (const p of DISTRICT_NAME_PREFIXES) {
+    for (const c of DISTRICT_NAME_CORES) out.push(`${p} ${c}`);
+  }
+  return out;
+}
+
+const neighborhoodNames = buildDistrictNameBank();
 
 const districtHue: Record<DistrictKind, string> = {
   "Old Quarter": "#d3cab5",
@@ -125,6 +155,139 @@ const districtHue: Record<DistrictKind, string> = {
   "Civic Hill": "#d9cfb9",
   "Garden Ward": "#cad0b8",
 };
+
+const DESCRIPTOR_ADJECTIVES_1920 = [
+  "Gaslight",
+  "Telegraph",
+  "Railway",
+  "Steam",
+  "Brick",
+  "Granite",
+  "Mercantile",
+  "Union",
+  "Dockside",
+  "Trolley",
+  "Boiler",
+  "Lantern",
+];
+
+const RESIDENTIAL_NOUNS_1920 = [
+  "Tenement",
+  "Townhouse",
+  "Boardinghouse",
+  "Row House",
+  "Courtyard Home",
+  "Walk-Up",
+  "Brownstone",
+  "Family House",
+  "Apartment House",
+  "Lodging House",
+];
+
+const COMMERCIAL_NOUNS_1920 = [
+  "Mercantile",
+  "Emporium",
+  "Dry Goods Hall",
+  "Trading House",
+  "Arcade",
+  "Market House",
+  "Counting House",
+  "Shopfront Block",
+  "Brokerage House",
+  "Warehouse Store",
+];
+
+const INDUSTRIAL_NOUNS_1920 = [
+  "Foundry Hall",
+  "Machine Works",
+  "Freight Shed",
+  "Assembly House",
+  "Textile Works",
+  "Boiler Yard",
+  "Packing House",
+  "Rail Depot",
+  "Coal Works",
+  "Mill Annex",
+];
+
+const CIVIC_NOUNS_1920 = [
+  "Municipal Hall",
+  "Civic House",
+  "Parish Annex",
+  "Court Office",
+  "Public Registry",
+  "Relief Office",
+  "Library Wing",
+  "Ward Hall",
+  "Clerk House",
+  "State Annex",
+];
+
+const SOCIAL_NOUNS_1920 = [
+  "Club Hall",
+  "Lodge House",
+  "Assembly Rooms",
+  "Temperance Hall",
+  "Social Institute",
+  "People's Hall",
+  "Union Rooms",
+  "Music Rooms",
+  "Lecture Hall",
+  "Society House",
+];
+
+const STATUS_LABELS = [
+  "Slums",
+  "Poor",
+  "Working Class",
+  "Modest",
+  "Middle Class",
+  "Respectable",
+  "Affluent",
+  "Luxury",
+];
+
+function normalizeStreetRoot(name: string): string {
+  return name
+    .replace(
+      /\s+(Street|Avenue|Road|Lane|Terrace|Way|Court|Place|Row|Parade|Drive|Walk|Square|Hill|Passage)$/i,
+      "",
+    )
+    .trim();
+}
+
+function buildStreetRootBank(): string[] {
+  const baseRoots: string[] = [];
+  const seenBase = new Set<string>();
+  for (const name of STREET_NAME_BANK) {
+    const root = normalizeStreetRoot(name);
+    if (!root || seenBase.has(root)) continue;
+    seenBase.add(root);
+    baseRoots.push(root);
+  }
+
+  const variants: string[] = [];
+  const seen = new Set<string>();
+  const affixes = ["Old", "New", "North", "South", "East", "West", "Upper", "Lower"];
+
+  const add = (value: string) => {
+    const v = value.trim();
+    if (!v || seen.has(v)) return;
+    seen.add(v);
+    variants.push(v);
+  };
+
+  for (const root of baseRoots) add(root);
+  for (const root of baseRoots) {
+    for (const a of affixes) {
+      add(`${a} ${root}`);
+      add(`${root} ${a}`);
+    }
+  }
+  return variants;
+}
+
+const STREET_ROOT_BANK = buildStreetRootBank();
 
 function settlementScale(population: number): SettlementScale {
   if (population < 2_000) return "Hamlet";
@@ -193,6 +356,111 @@ function pickIds(rng: () => number, people: Person[], count: number): number[] {
   return Array.from(set);
 }
 
+function buildDescriptorBank(nouns: string[]): string[] {
+  const out: string[] = [];
+  for (const adj of DESCRIPTOR_ADJECTIVES_1920) {
+    for (const noun of nouns) out.push(`${adj} ${noun}`);
+  }
+  return out;
+}
+
+const BUILDING_DESCRIPTOR_BANKS: Record<BuildingKind, string[]> = {
+  Residential: buildDescriptorBank(RESIDENTIAL_NOUNS_1920),
+  Commercial: buildDescriptorBank(COMMERCIAL_NOUNS_1920),
+  Industrial: buildDescriptorBank(INDUSTRIAL_NOUNS_1920),
+  Civic: buildDescriptorBank(CIVIC_NOUNS_1920),
+  Mixed: buildDescriptorBank(SOCIAL_NOUNS_1920),
+};
+
+function pickDescriptor(kind: BuildingKind, rng: () => number): string {
+  const bank = BUILDING_DESCRIPTOR_BANKS[kind];
+  return bank[Math.floor(rng() * bank.length)];
+}
+
+function personStatusScore(person: Person): number {
+  const job = (person.job ?? "").toLowerCase();
+  let score = 44;
+  if (!job || job === "no profession") score -= 24;
+  if (job.includes("child") || job.includes("student")) score -= 9;
+  if (
+    job.includes("doctor") ||
+    job.includes("professor") ||
+    job.includes("lawyer") ||
+    job.includes("bank") ||
+    job.includes("judge") ||
+    job.includes("owner")
+  ) {
+    score += 24;
+  }
+  if (
+    job.includes("manager") ||
+    job.includes("editor") ||
+    job.includes("merchant") ||
+    job.includes("accountant") ||
+    job.includes("architect")
+  ) {
+    score += 15;
+  }
+  if (
+    job.includes("clerk") ||
+    job.includes("teacher") ||
+    job.includes("nurse") ||
+    job.includes("police") ||
+    job.includes("post")
+  ) {
+    score += 7;
+  }
+  if (
+    job.includes("labor") ||
+    job.includes("dock") ||
+    job.includes("factory") ||
+    job.includes("miner") ||
+    job.includes("laundry") ||
+    job.includes("porter")
+  ) {
+    score -= 10;
+  }
+  if (job.includes("unemployed") || job.includes("beggar")) score -= 18;
+  if (person.age >= 55) score += 2;
+  return clamp(score, 0, 100);
+}
+
+function statusLabelFromScore(score: number): string {
+  if (score < 16) return STATUS_LABELS[0];
+  if (score < 28) return STATUS_LABELS[1];
+  if (score < 40) return STATUS_LABELS[2];
+  if (score < 52) return STATUS_LABELS[3];
+  if (score < 64) return STATUS_LABELS[4];
+  if (score < 76) return STATUS_LABELS[5];
+  if (score < 88) return STATUS_LABELS[6];
+  return STATUS_LABELS[7];
+}
+
+function parcelSocialClass(
+  building: Building,
+  peopleById: Map<number, Person>,
+): string {
+  const peopleScores = [...building.residents, ...building.workers]
+    .map((id) => peopleById.get(id))
+    .filter((p): p is Person => Boolean(p))
+    .map(personStatusScore);
+  const avgPeople = peopleScores.length
+    ? peopleScores.reduce((a, b) => a + b, 0) / peopleScores.length
+    : 44;
+
+  let baseByKind = 46;
+  if (building.kind === "Commercial") baseByKind = 58;
+  else if (building.kind === "Civic") baseByKind = 55;
+  else if (building.kind === "Residential") baseByKind = 42;
+  else if (building.kind === "Industrial") baseByKind = 30;
+  else if (building.kind === "Mixed") baseByKind = 50;
+
+  const workersPressure = building.workers.length > building.residents.length * 2 ? -4 : 0;
+  const residentsLift = building.residents.length >= 4 ? 3 : 0;
+  const score = clamp(baseByKind * 0.45 + avgPeople * 0.55 + workersPressure + residentsLift, 0, 100);
+  return statusLabelFromScore(score);
+}
+
 function districtByPoint(
   x: number,
   y: number,
@@ -256,9 +524,7 @@ function randomBuildingKind(
 }
 
 function makeRoadName(index: number, vertical: boolean): string {
-  const base = STREET_NAME_BANK[index % STREET_NAME_BANK.length]
-    .replace(/\s+(Street|Avenue|Road|Lane|Terrace|Way|Court|Place|Row|Parade|Drive|Walk|Square|Hill|Passage)$/i, "")
-    .trim();
+  const base = STREET_ROOT_BANK[index % STREET_ROOT_BANK.length];
   return vertical ? `${base} St` : `${base} Ave`;
 }
 
@@ -432,8 +698,8 @@ function orientedRectInsideZone(
     maxA = Math.max(maxA, Math.abs(dot(rel, axisA)));
     maxB = Math.max(maxB, Math.abs(dot(rel, axisB)));
   }
-  const halfA = Math.max(2.8, maxA * (0.44 + rng() * 0.16));
-  const halfB = Math.max(2.4, maxB * (0.34 + rng() * 0.14));
+  const halfA = Math.max(2.8, maxA * (0.528 + rng() * 0.192));
+  const halfB = Math.max(2.4, maxB * (0.408 + rng() * 0.168));
 
   return [
     { x: c.x - axisA.x * halfA - axisB.x * halfB, y: c.y - axisA.y * halfA - axisB.y * halfB },
@@ -558,8 +824,20 @@ function districtKindsByUrbanModel(
   return [
     { kind: "Market Ward", center: { x: center.x + (rng() - 0.5) * 46, y: center.y + (rng() - 0.5) * 42 } },
     { kind: "Civic Hill", center: { x: center.x + (rng() - 0.5) * 90, y: center.y + (rng() - 0.5) * 90 } },
-    { kind: "Old Quarter", center: { x: center.x + width * (rng() < 0.5 ? -0.17 : 0.17), y: center.y + height * (rng() - 0.5) * 0.22 } },
-    { kind: "Garden Ward", center: { x: center.x + width * (rng() - 0.5) * 0.45, y: center.y + height * (rng() - 0.5) * 0.45 } },
+    {
+      kind: "Old Quarter",
+      center: {
+        x: firstCorner.x + (center.x - firstCorner.x) * (0.35 + rng() * 0.12),
+        y: firstCorner.y + (center.y - firstCorner.y) * (0.35 + rng() * 0.12),
+      },
+    },
+    {
+      kind: "Garden Ward",
+      center: {
+        x: oppositeCorner.x + (center.x - oppositeCorner.x) * (0.42 + rng() * 0.18),
+        y: oppositeCorner.y + (center.y - oppositeCorner.y) * (0.42 + rng() * 0.18),
+      },
+    },
     { kind: "Factory Belt", center: { x: firstCorner.x, y: firstCorner.y } },
     { kind: "Harbor Side", center: { x: oppositeCorner.x, y: oppositeCorner.y } },
   ];
@@ -967,29 +1245,36 @@ function createMapModel(
           const structure = orientedRectInsideZone(zone, alongRoad, rng);
 
           let kind = randomBuildingKind(rng, district.kind);
-          if (normCenterDist < 0.13 && rng() < 0.72) {
-            kind = rng() < 0.64 ? "Commercial" : "Civic";
-          } else if (normCenterDist > 0.27 && toFactory > Math.min(config.width, config.height) * 0.22 && rng() < 0.52) {
+          const cornerBand = Math.min(config.width, config.height) * 0.2;
+          if (normCenterDist < 0.1) {
+            kind = rng() < 0.72 ? "Commercial" : rng() < 0.88 ? "Civic" : "Mixed";
+          } else if (normCenterDist < 0.18 && rng() < 0.62) {
+            kind = rng() < 0.56 ? "Commercial" : "Mixed";
+          } else if (toFactory < cornerBand && rng() < 0.72) {
+            kind = rng() < 0.74 ? "Industrial" : "Mixed";
+          } else if (
+            normCenterDist > 0.27 &&
+            toFactory > Math.min(config.width, config.height) * 0.22 &&
+            rng() < 0.64
+          ) {
             kind = "Residential";
-          } else if (toFactory < Math.min(config.width, config.height) * 0.2 && rng() < 0.66) {
-            kind = "Industrial";
           }
 
           const residentsTarget =
             kind === "Residential"
-              ? 1 + Math.floor(rng() * 5)
+              ? (normCenterDist > 0.24 ? 2 : 1) + Math.floor(rng() * 4)
               : kind === "Mixed"
                 ? 1 + Math.floor(rng() * 3)
                 : Math.floor(rng() * 2);
           const workersTarget =
             kind === "Industrial"
-              ? 3 + Math.floor(rng() * 9)
+              ? (toFactory < cornerBand ? 5 : 3) + Math.floor(rng() * 9)
               : kind === "Commercial"
-                ? 2 + Math.floor(rng() * 7)
+                ? (normCenterDist < 0.12 ? 4 : 2) + Math.floor(rng() * 8)
                 : kind === "Civic"
-                  ? 2 + Math.floor(rng() * 5)
+                  ? (normCenterDist < 0.14 ? 3 : 2) + Math.floor(rng() * 5)
                   : kind === "Mixed"
-                    ? 1 + Math.floor(rng() * 4)
+                    ? (normCenterDist < 0.16 ? 2 : 1) + Math.floor(rng() * 4)
                     : Math.floor(rng() * 2);
 
           buildings.push({
@@ -997,6 +1282,7 @@ function createMapModel(
             districtId: district.id,
             districtName: district.name,
             kind,
+            descriptor: pickDescriptor(kind, rng),
             points: zone,
             structurePoints: structure,
             address: addressForLot(
@@ -1208,7 +1494,7 @@ function buildingFillClass(kind: BuildingKind): string {
     case "Civic":
       return "building-civic";
     case "Mixed":
-      return "building-mixed";
+      return "building-social";
     default:
       return "building-residential";
   }
@@ -1226,9 +1512,7 @@ function hoverPeopleButtons(
   peopleById: Map<number, Person>,
   getPersonName: (p: Person) => string,
 ): string {
-  if (ids.length === 0) {
-    return `<div class="town-map-hover-empty"><strong>${title}:</strong> None listed</div>`;
-  }
+  if (ids.length === 0) return "";
   const head = ids.slice(0, 6);
   const rows = head
     .map((id) => {
@@ -1441,9 +1725,11 @@ export function renderTownMapPrototype(params: RenderParams): void {
   hoverEl.innerHTML = defaultHoverHtml;
 
   const renderBuildingPanel = (building: Building) => {
+    const socialClass = parcelSocialClass(building, peopleById);
+    const kindLabel = building.kind === "Mixed" ? "Social" : building.kind;
     hoverEl.innerHTML = `
       <h4>${building.address}</h4>
-      <div class="town-map-hover-meta">${building.kind} · ${building.districtName}</div>
+      <div class="town-map-hover-meta">${kindLabel} · ${building.descriptor} · ${building.districtName} · <strong>Class</strong>: ${socialClass}</div>
       ${hoverPeopleButtons("Residents", building.residents, peopleById, getPersonName)}
       ${hoverPeopleButtons("Workers", building.workers, peopleById, getPersonName)}
     `;

@@ -16,6 +16,9 @@ All notable changes to this project will be documented in this file.
 - Fixed map generation order so parcel creation truly progresses from urban center outward, and removed unintended diagonal collector overlays that visually cut across districts.
 - Replaced near-circular growth bias with branch-front settlement expansion so towns spread in organic, mold-like arms from the core rather than filling as concentric rings.
 - Building rendering now separates transparent parcel zones from smaller inset rectangular structures aligned to local road angle, increasing visual spacing and avoiding large touching polygon-like building masses.
+- Parcel-zone overlays are now effectively invisible by default, inner building footprints are enlarged by about 20%, and economic zoning pressure is stronger (core commercial/civic jobs, outer residential, corner industrial/poor-adjacent clustering).
+- Parcel Inspector now includes a 1920s building descriptor per parcel type, a computed social-class label (Luxury→Slums) based on building function and occupants, type-specific building color updates (Civic/Commercial/Residential/Social/Industrial), and it suppresses empty Residents/Workers sections entirely.
+- Fixed road naming so streets no longer collapse to a single repeated name, moved `Class` into the main Parcel Inspector meta row with bold label, and expanded district/street name generation variety by more than 3x via combinatorial name banks.
 
 ## [1.0.0] - 2026-02-24
 
