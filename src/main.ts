@@ -24,6 +24,7 @@ import {
 import {
   initTownMapControls,
   renderTownMapPrototype,
+  updateTownMapPersonPointers,
 } from "./map.ts";
 import { GDRIVE_PHOTOS, gdUrl } from "./photos.ts";
 import "./style.css";
@@ -97,6 +98,15 @@ let personAddressIndex = new Map<
   number,
   { residential: string[]; work: string[] }
 >();
+let hoveredSearchPersonId: number | null = null;
+let selectedSearchPersonId: number | null = null;
+type ResidentSearchEntry = {
+  id: number;
+  name: string;
+  nameLower: string;
+};
+let residentSearchIndex: ResidentSearchEntry[] = [];
+const residentNameById = new Map<number, string>();
 
 function getApiKey(): string {
   return (
@@ -179,6 +189,12 @@ const townMapScaleEl = document.getElementById(
 const townMapTitleEl = document.getElementById(
   "townMapTitle",
 ) as HTMLHeadingElement;
+const townMapResidentSearchEl = document.getElementById(
+  "townMapResidentSearch",
+) as HTMLInputElement;
+const townMapResidentResultsEl = document.getElementById(
+  "townMapResidentResults",
+) as HTMLDivElement;
 const mapZoomInBtn = document.getElementById("mapZoomIn") as HTMLButtonElement;
 const mapZoomOutBtn = document.getElementById(
   "mapZoomOut",
@@ -198,6 +214,134 @@ const createCultBtn = document.getElementById(
 ) as HTMLButtonElement;
 
 initTownMapControls(townMapSvgEl, mapZoomInBtn, mapZoomOutBtn, mapZoomResetBtn);
+
+function updateResidentMapPointers(): void {
+  updateTownMapPersonPointers(
+    townMapSvgEl,
+    hoveredSearchPersonId,
+    selectedSearchPersonId,
+  );
+}
+
+function rebuildResidentSearchIndex(): void {
+  if (!currentPopulation) {
+    residentSearchIndex = [];
+    residentNameById.clear();
+    return;
+  }
+  residentNameById.clear();
+  residentSearchIndex = currentPopulation.people.map((person) => {
+    const name = getPersonName(person);
+    residentNameById.set(person.id, name);
+    return {
+      id: person.id,
+      name,
+      nameLower: name.toLowerCase(),
+    };
+  });
+}
+
+function hideResidentSearchResults(): void {
+  townMapResidentResultsEl.innerHTML = "";
+  townMapResidentResultsEl.classList.remove("open");
+}
+
+function showResidentSearchResults(query: string): void {
+  const q = query.trim().toLowerCase();
+  if (!q) {
+    hideResidentSearchResults();
+    return;
+  }
+
+  const starts: ResidentSearchEntry[] = [];
+  const contains: ResidentSearchEntry[] = [];
+  for (const entry of residentSearchIndex) {
+    if (entry.nameLower.startsWith(q)) starts.push(entry);
+    else if (entry.nameLower.includes(q)) contains.push(entry);
+  }
+  const matches = [...starts, ...contains]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .slice(0, 220);
+
+  if (matches.length === 0) {
+    townMapResidentResultsEl.innerHTML =
+      '<div class="town-map-search-empty">No residents found.</div>';
+    townMapResidentResultsEl.classList.add("open");
+    hoveredSearchPersonId = null;
+    updateResidentMapPointers();
+    return;
+  }
+
+  townMapResidentResultsEl.innerHTML = matches
+    .map((entry) => {
+      const addresses = personAddressIndex.get(entry.id);
+      const hasHome = (addresses?.residential.length ?? 0) > 0;
+      const hasWork = (addresses?.work.length ?? 0) > 0;
+      const badges = [
+        hasHome ? '<span class="town-map-search-badge home">Home</span>' : "",
+        hasWork ? '<span class="town-map-search-badge work">Work</span>' : "",
+      ]
+        .filter(Boolean)
+        .join("");
+      return `<button class="town-map-search-item" data-person-id="${entry.id}" type="button">
+        <span class="town-map-search-name">${entry.name}</span>
+        <span class="town-map-search-badges">${badges}</span>
+      </button>`;
+    })
+    .join("");
+  townMapResidentResultsEl.classList.add("open");
+
+  townMapResidentResultsEl
+    .querySelectorAll<HTMLButtonElement>(".town-map-search-item")
+    .forEach((item) => {
+      const personId = Number(item.dataset.personId);
+      item.addEventListener("mouseenter", () => {
+        hoveredSearchPersonId = personId;
+        updateResidentMapPointers();
+      });
+      item.addEventListener("mouseleave", () => {
+        hoveredSearchPersonId = null;
+        updateResidentMapPointers();
+      });
+      item.addEventListener("click", () => {
+        selectedSearchPersonId = personId;
+        hoveredSearchPersonId = personId;
+        townMapResidentSearchEl.value = residentNameById.get(personId) ?? "";
+        updateResidentMapPointers();
+      });
+    });
+}
+
+townMapResidentSearchEl.addEventListener("input", () => {
+  const query = townMapResidentSearchEl.value;
+  if (query.trim() === "") {
+    selectedSearchPersonId = null;
+    hoveredSearchPersonId = null;
+    hideResidentSearchResults();
+    updateResidentMapPointers();
+    return;
+  }
+  showResidentSearchResults(query);
+});
+
+townMapResidentSearchEl.addEventListener("focus", () => {
+  if (townMapResidentSearchEl.value.trim()) {
+    showResidentSearchResults(townMapResidentSearchEl.value);
+  }
+});
+
+document.addEventListener("click", (event) => {
+  const target = event.target as Element;
+  if (
+    target.closest(".town-map-search") ||
+    target.closest(".town-map-search-results")
+  ) {
+    return;
+  }
+  hideResidentSearchResults();
+  hoveredSearchPersonId = null;
+  updateResidentMapPointers();
+});
 
 /** Update the settlement-type word in the page title based on population. */
 function updateTitleWord(population: number): void {
@@ -738,6 +882,15 @@ async function doGenerate() {
         personAddressIndex = index;
       },
     });
+    rebuildResidentSearchIndex();
+    if (townMapResidentSearchEl.value.trim()) {
+      showResidentSearchResults(townMapResidentSearchEl.value);
+    } else {
+      selectedSearchPersonId = null;
+      hoveredSearchPersonId = null;
+      hideResidentSearchResults();
+    }
+    updateResidentMapPointers();
     updateCacheStatus();
   } catch (e) {
     console.error(e);

@@ -63,12 +63,23 @@
           <span id="townMapScale" class="town-map-scale">Town</span>
         </div>
         <div class="town-map-shell">
-          <div class="town-map-canvas-wrap">
-            <svg id="townMapSvg" class="town-map-canvas"></svg>
-            <div class="town-map-controls">
-              <button id="mapZoomIn" title="Zoom in">＋</button>
-              <button id="mapZoomOut" title="Zoom out">－</button>
-              <button id="mapZoomReset" title="Reset view">⦿</button>
+          <div class="town-map-main-column">
+            <div class="town-map-search">
+              <input
+                id="townMapResidentSearch"
+                type="text"
+                placeholder="Search residents by name..."
+                autocomplete="off"
+              />
+              <div id="townMapResidentResults" class="town-map-search-results"></div>
+            </div>
+            <div class="town-map-canvas-wrap">
+              <svg id="townMapSvg" class="town-map-canvas"></svg>
+              <div class="town-map-controls">
+                <button id="mapZoomIn" title="Zoom in">＋</button>
+                <button id="mapZoomOut" title="Zoom out">－</button>
+                <button id="mapZoomReset" title="Reset view">⦿</button>
+              </div>
             </div>
           </div>
           <aside class="town-map-sidepanel">

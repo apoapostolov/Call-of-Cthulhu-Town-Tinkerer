@@ -29,4 +29,9 @@ dist-ssr
 *.sw?
 DEVELOPMENT_LOG.md
 AGENTS.md
+DOCUMENTATION.md
+PROCESSING_DATA_CACHE.md
+SIM_TOWN_RULES.md
+TODO.md
+.tmp-class-report/
 work/

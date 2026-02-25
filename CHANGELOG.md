@@ -6,10 +6,22 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- No user-visible changes yet.
+
+## [1.1.0] - 2026-02-25
+
+### Added
+
 - Added a batch-safe cache curation script that migrates high-quality traits and secrets from `prebuilt_cache.json` into internal TypeScript databanks, removing runtime dependence on external JSON for those banks.
+- Added an interactive resident search above the map with real-time name matching, a scrollable themed dropdown, and hover/select integration for map-location highlighting.
+- Added `scripts/class_distribution_report.ts`, a seeded benchmark utility that prints building-class distributions across hamlet/town/city/metropolis scenarios for balancing passes.
 
 ### Changed
 
+- Added muted Google Maps-style person pins on the map: hover in search shows temporary residential/work pointers (red/green), and click sets persistent pointers until the search is cleared or a different resident is selected/hovered.
+- Moved resident search into the left map column above the canvas, made search selection populate the input with the chosen full name, shifted pin tips to land roughly 40% into buildings with slight horizontal offset, and increased red/green pin contrast.
+- Reworked parcel social-class assignment to use scale-specific 1920s US wealth-band targets (quantile mapping), yielding more historically plausible class spreads from villages to metropolis while preserving district/building influences.
+- Tuned Credit Rating-based occupant overrides so resident wealth can still uplift parcels, but only under stronger conditions that avoid unrealistic upper-class inflation.
 - Reverted `src/map.ts` to the last committed square-layout map generator for stability and consistency, while keeping non-map processing/documentation work and UI shell styling updates.
 - Expanded industrial and social facility databanks to large 1920s procedural sets (thousands of worker-destination names) with period-appropriate operators, facility cores, and modifiers.
 - Town map generation now follows center-out urban morphology: high-value commercial/civic cores, outer residential spread, and corner-biased industrial/poor belts, with irregular polygon districts and angular street geometry instead of strict orthogonal cell filling.

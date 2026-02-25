@@ -109,6 +109,25 @@ interface CameraState {
 
 const cameraBySvg = new WeakMap<SVGSVGElement, CameraState>();
 
+interface PersonMarkerCoord {
+  x: number;
+  y: number;
+}
+
+interface PersonMarkerLocations {
+  residential: PersonMarkerCoord[];
+  work: PersonMarkerCoord[];
+}
+
+interface MarkerRenderState {
+  hoveredPersonId: number | null;
+  selectedPersonId: number | null;
+  locationsByPersonId: Map<number, PersonMarkerLocations>;
+  pointerLayer: SVGGElement | null;
+}
+
+const markerStateBySvg = new WeakMap<SVGSVGElement, MarkerRenderState>();
+
 const DISTRICT_NAME_PREFIXES = [
   "North",
   "South",
@@ -2075,6 +2094,70 @@ function setZoom(svgEl: SVGSVGElement, nextZoom: number): void {
   applyViewBox(svgEl);
 }
 
+function ensureMarkerState(svgEl: SVGSVGElement): MarkerRenderState {
+  const existing = markerStateBySvg.get(svgEl);
+  if (existing) return existing;
+  const created: MarkerRenderState = {
+    hoveredPersonId: null,
+    selectedPersonId: null,
+    locationsByPersonId: new Map(),
+    pointerLayer: null,
+  };
+  markerStateBySvg.set(svgEl, created);
+  return created;
+}
+
+function buildPersonMarker(loc: PersonMarkerCoord, kind: "residential" | "work"): SVGGElement {
+  const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  g.setAttribute(
+    "class",
+    `town-map-person-pointer ${kind === "residential" ? "town-map-person-pointer-home" : "town-map-person-pointer-work"}`,
+  );
+  g.setAttribute("transform", `translate(${loc.x.toFixed(1)} ${(loc.y - 13).toFixed(1)})`);
+  g.setAttribute("pointer-events", "none");
+
+  const pin = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  pin.setAttribute("d", "M 0 -12 C -5.5 -12 -10 -7.5 -10 -2 C -10 3.4 -5.6 7.7 0 13 C 5.6 7.7 10 3.4 10 -2 C 10 -7.5 5.5 -12 0 -12 Z");
+  g.appendChild(pin);
+
+  const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  dot.setAttribute("cx", "0");
+  dot.setAttribute("cy", "-2");
+  dot.setAttribute("r", "2.9");
+  g.appendChild(dot);
+
+  return g;
+}
+
+function renderPersonPointers(svgEl: SVGSVGElement): void {
+  const markerState = ensureMarkerState(svgEl);
+  if (!markerState.pointerLayer) return;
+  markerState.pointerLayer.innerHTML = "";
+
+  const personId = markerState.hoveredPersonId ?? markerState.selectedPersonId;
+  if (personId === null) return;
+  const locs = markerState.locationsByPersonId.get(personId);
+  if (!locs) return;
+
+  for (const loc of locs.residential) {
+    markerState.pointerLayer.appendChild(buildPersonMarker(loc, "residential"));
+  }
+  for (const loc of locs.work) {
+    markerState.pointerLayer.appendChild(buildPersonMarker(loc, "work"));
+  }
+}
+
+export function updateTownMapPersonPointers(
+  svgEl: SVGSVGElement,
+  hoveredPersonId: number | null,
+  selectedPersonId: number | null,
+): void {
+  const markerState = ensureMarkerState(svgEl);
+  markerState.hoveredPersonId = hoveredPersonId;
+  markerState.selectedPersonId = selectedPersonId;
+  renderPersonPointers(svgEl);
+}
+
 export function initTownMapControls(
   svgEl: SVGSVGElement,
   zoomInBtn: HTMLButtonElement,
@@ -2365,6 +2448,11 @@ export function renderTownMapPrototype(params: RenderParams): void {
   frame.setAttribute("class", "town-map-frame");
   svgEl.appendChild(frame);
 
+  const pointerLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  pointerLayer.setAttribute("class", "town-map-person-pointer-layer");
+  pointerLayer.setAttribute("pointer-events", "none");
+  svgEl.appendChild(pointerLayer);
+
   const peopleById = new Map<number, Person>(people.map((p) => [p.id, p]));
   const buildingById = new Map<number, Building>(
     model.buildings.map((b) => [b.id, b]),
@@ -2386,11 +2474,44 @@ export function renderTownMapPrototype(params: RenderParams): void {
     if (!list.includes(address)) list.push(address);
     personAddressIndex.set(personId, existing);
   };
+  const markerLocations = new Map<number, PersonMarkerLocations>();
+  const upsertMarkerLocation = (
+    personId: number,
+    type: "residential" | "work",
+    loc: PersonMarkerCoord,
+  ) => {
+    const existing = markerLocations.get(personId) ?? {
+      residential: [],
+      work: [],
+    };
+    const list = existing[type];
+    if (!list.some((p) => Math.abs(p.x - loc.x) < 0.1 && Math.abs(p.y - loc.y) < 0.1)) {
+      list.push(loc);
+    }
+    markerLocations.set(personId, existing);
+  };
   for (const b of model.buildings) {
-    for (const rid of b.residents) upsertAddress(rid, "residential", b.address);
-    for (const wid of b.workers) upsertAddress(wid, "work", b.address);
+    const structureBounds = polygonBounds(b.structurePoints);
+    const structureWidth = structureBounds.right - structureBounds.left;
+    const structureHeight = structureBounds.bottom - structureBounds.top;
+    const markerLoc = {
+      x: structureBounds.left + structureWidth * 0.62,
+      y: structureBounds.top + structureHeight * 0.4,
+    };
+    for (const rid of b.residents) {
+      upsertAddress(rid, "residential", b.address);
+      upsertMarkerLocation(rid, "residential", markerLoc);
+    }
+    for (const wid of b.workers) {
+      upsertAddress(wid, "work", b.address);
+      upsertMarkerLocation(wid, "work", markerLoc);
+    }
   }
   onPersonAddressIndex?.(personAddressIndex);
+  const markerState = ensureMarkerState(svgEl);
+  markerState.locationsByPersonId = markerLocations;
+  markerState.pointerLayer = pointerLayer;
+  renderPersonPointers(svgEl);
   const districtByName = new Map<string, District>(
     model.districts.map((d) => [d.name, d]),
   );
