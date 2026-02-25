@@ -7,6 +7,7 @@
 
 import type { AIPersonData, AIResult } from "./ai.ts";
 import type { Person } from "./logic.ts";
+import { INTERNAL_CACHE_DATABANK } from "./databanks.ts";
 import { mulberry32 } from "./logic.ts";
 
 const CACHE_KEY = "coc_ai_cache";
@@ -20,25 +21,50 @@ interface AICache {
 }
 
 function emptyCache(): AICache {
-  return { traits: [], normalSecrets: [], supernaturalSecrets: [] };
+  return {
+    traits: [...INTERNAL_CACHE_DATABANK.traits],
+    normalSecrets: [...INTERNAL_CACHE_DATABANK.normalSecrets],
+    supernaturalSecrets: [...INTERNAL_CACHE_DATABANK.supernaturalSecrets],
+  };
 }
 
 function loadCache(): AICache {
+  const base = emptyCache();
   try {
     const raw = localStorage.getItem(CACHE_KEY);
-    if (!raw) return emptyCache();
+    if (!raw) return base;
     const parsed = JSON.parse(raw) as Partial<AICache>;
+
+    const traits = new Set(base.traits);
+    const normal = new Set(base.normalSecrets);
+    const sup = new Set(base.supernaturalSecrets);
+
+    if (Array.isArray(parsed.traits)) {
+      for (const t of parsed.traits) {
+        const tt = String(t).trim().replace(/,\s*/g, ", ");
+        if (tt) traits.add(tt);
+      }
+    }
+    if (Array.isArray(parsed.normalSecrets)) {
+      for (const s of parsed.normalSecrets) {
+        const ss = String(s).trim();
+        if (ss) normal.add(ss);
+      }
+    }
+    if (Array.isArray(parsed.supernaturalSecrets)) {
+      for (const s of parsed.supernaturalSecrets) {
+        const ss = String(s).trim();
+        if (ss) sup.add(ss);
+      }
+    }
+
     return {
-      traits: Array.isArray(parsed.traits) ? (parsed.traits as string[]) : [],
-      normalSecrets: Array.isArray(parsed.normalSecrets)
-        ? (parsed.normalSecrets as string[])
-        : [],
-      supernaturalSecrets: Array.isArray(parsed.supernaturalSecrets)
-        ? (parsed.supernaturalSecrets as string[])
-        : [],
+      traits: Array.from(traits).slice(0, MAX_POOL),
+      normalSecrets: Array.from(normal).slice(0, MAX_POOL),
+      supernaturalSecrets: Array.from(sup).slice(0, MAX_POOL),
     };
   } catch {
-    return emptyCache();
+    return base;
   }
 }
 
@@ -79,9 +105,8 @@ export function getCacheStats(): CacheStats {
 
 /**
  * Merge an externally provided cache fragment into the existing stored cache.
- * Used during startup to incorporate a prebuilt cache file shipped with the
- * application. Entries are appended only if they are unique and pools are
- * capped by MAX_POOL. The operation is idempotent.
+ * Used during startup to optionally import an external cache file. Entries are
+ * appended only if they are unique and pools are capped by MAX_POOL.
  */
 export function mergeCache(other: Partial<AICache>): void {
   const c = loadCache();

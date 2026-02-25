@@ -29,5 +29,4 @@ dist-ssr
 *.sw?
 DEVELOPMENT_LOG.md
 AGENTS.md
-PROCESSING_INSTRUCTIONS.md
 work/
